@@ -1,0 +1,456 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useSession, signOut } from "@/lib/auth";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import Navbar from "@/components/Navbar";
+import { supabase } from "../../supabaseclient";
+import { useToast } from "@/hooks/use-toast";
+import {
+  getUserAppointments,
+  getPatientPrescriptions,
+  getMedicalRecords,
+  getPatientProfile,
+} from "@/lib/supabase-queries";
+import { Calendar, FileText, Activity, Clock, MapPin, Video, User, Mail, Phone } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+
+const Dashboard = () => {
+  const { data: session, isPending } = useSession();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  
+  const [appointments, setAppointments] = useState<any[]>([]);
+  const [prescriptions, setPrescriptions] = useState<any[]>([]);
+  const [medicalRecords, setMedicalRecords] = useState<any[]>([]);
+  const [patientProfile, setPatientProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("overview");
+
+  useEffect(() => {
+    if (!isPending && !session) {
+      navigate("/signin");
+    }
+  }, [session, isPending, navigate]);
+
+  useEffect(() => {
+    if (session?.user?.id) {
+      loadDashboardData();
+    }
+  }, [session?.user?.id]);
+
+  const loadDashboardData = async () => {
+    if (!session?.user?.id) return;
+    
+    setLoading(true);
+    try {
+      const [appts, scripts, records, profile] = await Promise.all([
+        getUserAppointments(session.user.id),
+        getPatientPrescriptions(session.user.id),
+        getMedicalRecords(session.user.id),
+        getPatientProfile(session.user.id),
+      ]);
+
+      setAppointments(appts);
+      setPrescriptions(scripts);
+      setMedicalRecords(records);
+      setPatientProfile(profile);
+    } catch (error: any) {
+      console.error("Error loading dashboard:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load dashboard data",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast({
+        title: "Signed out",
+        description: "You have been signed out successfully",
+      });
+      navigate("/");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to sign out",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const getStatusColor = (status: string) => {
+    const colors: Record<string, string> = {
+      pending: "bg-yellow-100 text-yellow-800",
+      confirmed: "bg-green-100 text-green-800",
+      completed: "bg-blue-100 text-blue-800",
+      cancelled: "bg-red-100 text-red-800",
+    };
+    return colors[status] || "bg-gray-100 text-gray-800";
+  };
+
+  if (isPending || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return null;
+  }
+
+  const upcomingAppointments = appointments.filter(
+    (apt) => new Date(apt.slot_start) > new Date() && apt.status !== "cancelled"
+  );
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      <Navbar />
+      <div className="flex-1 container mx-auto py-8 px-4">
+        <div className="max-w-6xl mx-auto space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold">Dashboard</h1>
+              <p className="text-muted-foreground mt-2">
+                Welcome back, {session.user.name || session.user.email}!
+              </p>
+            </div>
+            <Button onClick={handleSignOut} variant="outline">
+              Sign Out
+            </Button>
+          </div>
+
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="appointments">Appointments</TabsTrigger>
+              <TabsTrigger value="prescriptions">Prescriptions</TabsTrigger>
+              <TabsTrigger value="records">Medical Records</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="overview" className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-3">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Upcoming Appointments</CardTitle>
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{upcomingAppointments.length}</div>
+                    <p className="text-xs text-muted-foreground">
+                      {upcomingAppointments.length === 1 ? "appointment" : "appointments"} scheduled
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Active Prescriptions</CardTitle>
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{prescriptions.length}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Current prescriptions
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Medical Records</CardTitle>
+                    <Activity className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{medicalRecords.length}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Total records
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Profile Information</CardTitle>
+                    <CardDescription>Your account details</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <User className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Name</p>
+                        <p className="text-base">{session.user.name || patientProfile?.full_name || "Not set"}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Mail className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Email</p>
+                        <p className="text-base">{session.user.email}</p>
+                      </div>
+                    </div>
+                    {patientProfile?.phone && (
+                      <div className="flex items-center gap-3">
+                        <Phone className="h-5 w-5 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">Phone</p>
+                          <p className="text-base">{patientProfile.phone}</p>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Quick Actions</CardTitle>
+                    <CardDescription>Common tasks</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-3">
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() => navigate("/doctors")}
+                      >
+                        <Video className="w-4 h-4 mr-2" />
+                        Browse Doctors
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() => navigate("/consultation")}
+                      >
+                        <Calendar className="w-4 h-4 mr-2" />
+                        Book Consultation
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {upcomingAppointments.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Upcoming Appointments</CardTitle>
+                    <CardDescription>Your scheduled consultations</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {upcomingAppointments.slice(0, 3).map((apt) => (
+                        <div
+                          key={apt.id}
+                          className="flex items-center justify-between p-4 border rounded-lg"
+                        >
+                          <div>
+                            <p className="font-medium">
+                              Dr. {apt.doctors?.user_profiles?.full_name || "Unknown"}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {formatDate(apt.slot_start)}
+                            </p>
+                          </div>
+                          <Badge className={getStatusColor(apt.status)}>
+                            {apt.status}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="appointments" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>All Appointments</CardTitle>
+                  <CardDescription>Your appointment history</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {appointments.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground">No appointments found</p>
+                      <Button
+                        className="mt-4"
+                        onClick={() => navigate("/consultation")}
+                      >
+                        Book Your First Appointment
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {appointments.map((apt) => (
+                        <div
+                          key={apt.id}
+                          className="p-4 border rounded-lg space-y-2"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="font-semibold">
+                                Dr. {apt.doctors?.user_profiles?.full_name || "Unknown Doctor"}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {apt.specialty || "General Consultation"}
+                              </p>
+                            </div>
+                            <Badge className={getStatusColor(apt.status)}>
+                              {apt.status}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <Clock className="w-4 h-4" />
+                              {formatDate(apt.slot_start)}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Video className="w-4 h-4" />
+                              {apt.consultation_type || "video"}
+                            </div>
+                          </div>
+                          {apt.symptoms && (
+                            <p className="text-sm pt-2 border-t">
+                              <span className="font-medium">Symptoms: </span>
+                              {apt.symptoms}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="prescriptions" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Prescriptions</CardTitle>
+                  <CardDescription>Your active and past prescriptions</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {prescriptions.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground">No prescriptions found</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {prescriptions.map((script) => (
+                        <div
+                          key={script.id}
+                          className="p-4 border rounded-lg space-y-2"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="font-semibold">
+                                {formatDate(script.created_at)}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                Dr. {script.appointments?.doctors?.user_profiles?.full_name || "Unknown"}
+                              </p>
+                            </div>
+                            <Badge variant={script.is_active ? "default" : "secondary"}>
+                              {script.is_active ? "Active" : "Inactive"}
+                            </Badge>
+                          </div>
+                          {script.diagnosis && (
+                            <p className="text-sm">
+                              <span className="font-medium">Diagnosis: </span>
+                              {script.diagnosis}
+                            </p>
+                          )}
+                          {script.medications && Array.isArray(script.medications) && (
+                            <div className="text-sm">
+                              <p className="font-medium mb-1">Medications:</p>
+                              <ul className="list-disc list-inside space-y-1">
+                                {script.medications.map((med: any, idx: number) => (
+                                  <li key={idx}>
+                                    {med.name} - {med.dosage} ({med.frequency})
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="records" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Medical Records</CardTitle>
+                  <CardDescription>Your complete medical history</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {medicalRecords.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground">No medical records found</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {medicalRecords.map((record) => (
+                        <div
+                          key={record.id}
+                          className="p-4 border rounded-lg space-y-2"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="font-semibold">{record.title}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {record.record_type} • {new Date(record.recorded_date).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <Badge variant="outline">{record.record_type}</Badge>
+                          </div>
+                          {record.description && (
+                            <p className="text-sm">{record.description}</p>
+                          )}
+                          {record.vital_signs && (
+                            <div className="text-sm pt-2 border-t">
+                              <p className="font-medium mb-1">Vital Signs:</p>
+                              <pre className="text-xs bg-muted p-2 rounded">
+                                {JSON.stringify(record.vital_signs, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Dashboard;

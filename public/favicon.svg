@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- Rounded square background with subtle shadow effect -->
+  <rect width="64" height="64" rx="14" fill="url(#grad)"/>
+  <!-- Medical cross icon - cleaner design -->
+  <rect x="24" y="14" width="16" height="36" fill="white" rx="2" opacity="0.95"/>
+  <rect x="14" y="24" width="36" height="16" fill="white" rx="2" opacity="0.95"/>
+</svg>
+

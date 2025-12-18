@@ -1,0 +1,226 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* CareConnect Design System - Healthcare & Wellness Theme
+   Calming, warm colors promoting trust and wellbeing.
+   All colors in HSL format.
+*/
+
+@layer base {
+  :root {
+    --background: oklch(0.9911 0 0);
+    --foreground: oklch(0.2046 0 0);
+    --card: oklch(0.9911 0 0);
+    --card-foreground: oklch(0.2046 0 0);
+    --popover: oklch(0.9911 0 0);
+    --popover-foreground: oklch(0.4386 0 0);
+    --primary: oklch(0.8348 0.1302 160.9080);
+    --primary-foreground: oklch(0.2626 0.0147 166.4589);
+    --secondary: oklch(0.9940 0 0);
+    --secondary-foreground: oklch(0.2046 0 0);
+    --muted: oklch(0.9461 0 0);
+    --muted-foreground: oklch(0.2435 0 0);
+    --accent: oklch(0.9461 0 0);
+    --accent-foreground: oklch(0.2435 0 0);
+    --destructive: oklch(0.5523 0.1927 32.7272);
+    --destructive-foreground: oklch(0.9934 0.0032 17.2118);
+    --border: oklch(0.9037 0 0);
+    --input: oklch(0.9731 0 0);
+    --ring: oklch(0.8348 0.1302 160.9080);
+    --chart-1: oklch(0.8348 0.1302 160.9080);
+    --chart-2: oklch(0.6231 0.1880 259.8145);
+    --chart-3: oklch(0.6056 0.2189 292.7172);
+    --chart-4: oklch(0.7686 0.1647 70.0804);
+    --chart-5: oklch(0.6959 0.1491 162.4796);
+
+    --radius: 0.5rem;
+
+    /* Healthcare Gradients - Updated for new primary */
+    --gradient-primary: linear-gradient(135deg, var(--primary), oklch(0.85 0.12 165));
+    --gradient-hero: linear-gradient(135deg, oklch(0.98 0.01 160) 0%, oklch(0.99 0 0) 100%);
+    --gradient-wellness: linear-gradient(180deg, oklch(0.98 0.01 160) 0%, var(--background) 100%);
+
+    /* Custom Sidebar (Old HSL preserved but mapped variables) */
+    --sidebar-background: var(--background);
+    --sidebar-foreground: var(--foreground);
+    --sidebar-primary: var(--primary);
+    --sidebar-primary-foreground: var(--primary-foreground);
+    --sidebar-accent: var(--accent);
+    --sidebar-accent-foreground: var(--accent-foreground);
+    --sidebar-border: var(--border);
+    --sidebar-ring: var(--ring);
+
+    /* Shadow variables are defined in tailwind.config.ts but kept here for reference if needed */
+  }
+
+  .dark {
+    --background: oklch(0.1822 0 0);
+    --foreground: oklch(0.9288 0.0126 255.5078);
+    --card: oklch(0.2046 0 0);
+    --card-foreground: oklch(0.9288 0.0126 255.5078);
+    --popover: oklch(0.2603 0 0);
+    --popover-foreground: oklch(0.7348 0 0);
+    --primary: oklch(0.7060 0.1206 187.1606);
+    --primary-foreground: oklch(0.3210 0.0172 165.9945);
+    --secondary: oklch(0.6431 0.1601 143.7777);
+    --secondary-foreground: oklch(0.8481 0.0168 297.4734);
+    --muted: oklch(0.2393 0 0);
+    --muted-foreground: oklch(0.7122 0 0);
+    --accent: oklch(0.3132 0 0);
+    --accent-foreground: oklch(0.9851 0 0);
+    --destructive: oklch(0.3123 0.0852 29.7877);
+    --destructive-foreground: oklch(0.9368 0.0045 34.3092);
+    --border: oklch(0.2809 0 0);
+    --input: oklch(0.2603 0 0);
+    --ring: oklch(0.8003 0.1821 151.7110);
+    --chart-1: oklch(0.8003 0.1821 151.7110);
+    --chart-2: oklch(0.7137 0.1434 254.6240);
+    --chart-3: oklch(0.7090 0.1592 293.5412);
+    --chart-4: oklch(0.8369 0.1644 84.4286);
+    --chart-5: oklch(0.7845 0.1325 181.9120);
+
+    --sidebar-background: var(--background);
+    --sidebar-foreground: var(--foreground);
+    --sidebar-primary: var(--primary);
+    --sidebar-primary-foreground: var(--primary-foreground);
+    --sidebar-accent: var(--accent);
+    --sidebar-accent-foreground: var(--accent-foreground);
+    --sidebar-border: var(--border);
+    --sidebar-ring: var(--ring);
+
+    --gradient-primary: linear-gradient(135deg, var(--primary), oklch(0.6 0.15 190));
+    --gradient-hero: linear-gradient(135deg, oklch(0.2 0.01 180) 0%, var(--background) 100%);
+    --gradient-wellness: linear-gradient(180deg, oklch(0.2 0.01 180) 0%, var(--background) 100%);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Smooth scrolling for a calming experience */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Focus states with gentle glow */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-background;
+    transition: var(--transition-smooth);
+  }
+}
+
+@layer utilities {
+
+  /* Healthcare-specific utility classes */
+  .wellness-gradient {
+    background: var(--gradient-wellness);
+  }
+
+  .hero-gradient {
+    background: var(--gradient-hero);
+  }
+
+  .shadow-wellness {
+    box-shadow: var(--shadow-soft);
+  }
+
+  .shadow-wellness-lg {
+    box-shadow: var(--shadow-medium);
+  }
+
+  .glow-primary {
+    box-shadow: var(--shadow-glow);
+  }
+
+  /* Smooth transitions for all interactive elements */
+  .transition-wellness {
+    transition: var(--transition-gentle);
+  }
+
+  /* Glassmorphism effect for cards */
+  .glass-card {
+    @apply backdrop-blur-md bg-card border border-border;
+    box-shadow: var(--shadow-soft);
+  }
+
+  /* Breathing animation for loading states */
+  @keyframes breathe {
+
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 0.8;
+    }
+
+    50% {
+      transform: scale(1.05);
+      opacity: 1;
+    }
+  }
+
+  .animate-breathe {
+    animation: breathe 3s ease-in-out infinite;
+  }
+
+  /* Pulse animation for health indicators */
+  @keyframes health-pulse {
+
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 hsl(174 62% 47% / 0.4);
+    }
+
+    50% {
+      box-shadow: 0 0 0 10px hsl(174 62% 47% / 0);
+    }
+  }
+
+  .animate-health-pulse {
+    animation: health-pulse 2s ease-in-out infinite;
+  }
+
+  /* Fade up animation for content */
+  @keyframes fade-up {
+    0% {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-up {
+    animation: fade-up 0.6s ease-out forwards;
+  }
+
+  .animation-delay-100 {
+    animation-delay: 100ms;
+  }
+
+  .animation-delay-200 {
+    animation-delay: 200ms;
+  }
+
+  .animation-delay-300 {
+    animation-delay: 300ms;
+  }
+
+  .animation-delay-400 {
+    animation-delay: 400ms;
+  }
+
+  .animation-delay-500 {
+    animation-delay: 500ms;
+  }
+}
