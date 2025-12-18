@@ -71,28 +71,62 @@ Built with a focus on speed, security, and developer experience:
 
 To get a local copy up and running, follow these simple steps:
 
-1.  **Clone the Repository**
-    ```bash
-    git clone https://github.com/widgetwalker/hackathon.git
-    cd hackathon
-    ```
+### 1. **Clone the Repository**
+```bash
+git clone https://github.com/widgetwalker/hackathon.git
+cd hackathon
+```
 
-2.  **Install Dependencies**
-    ```bash
-    npm install
-    ```
+### 2. **Install Dependencies**
+```bash
+npm install
+```
 
-3.  **Configure Environment**
-    Create a `.env` file based on `.env.example`:
-    ```env
-    DATABASE_URL=your_supabase_url
-    BETTER_AUTH_SECRET=your_secret
-    ```
+### 3. **Configure Environment**
 
-4.  **Run Locally**
-    ```bash
-    npm run dev:all
-    ```
+Create a `.env` file in the root directory with your Supabase credentials:
+
+```env
+# Supabase Configuration
+DATABASE_URL=postgresql://postgres.[PROJECT_REF]:[YOUR_PASSWORD]@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres
+BETTER_AUTH_URL=http://localhost:3001
+BETTER_AUTH_SECRET=your_random_secret_key_here
+
+# Supabase Client (for frontend)
+VITE_SUPABASE_URL=https://[PROJECT_REF].supabase.co
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+**Important Notes:**
+- Replace `[PROJECT_REF]` with your Supabase project reference
+- Replace `[YOUR_PASSWORD]` with your Supabase database password
+- Generate a secure random string for `BETTER_AUTH_SECRET`
+- Get your `VITE_SUPABASE_ANON_KEY` from Supabase Dashboard → Settings → API
+
+### 4. **Run the Application**
+
+CareConnect uses a dual-server architecture:
+
+**Option A: Run both servers together (Recommended)**
+```bash
+npm run dev:all
+```
+
+**Option B: Run servers separately**
+
+Terminal 1 - Frontend Server:
+```bash
+npm run dev
+```
+
+Terminal 2 - Auth Server:
+```bash
+npm run dev:auth
+```
+
+The application will be available at:
+- **Frontend**: http://localhost:8080
+- **Auth API**: http://localhost:3001
 
 ---
 
