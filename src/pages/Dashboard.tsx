@@ -1,11 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSession, signOut } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Navbar from "@/components/Navbar";
-import { supabase } from "../../supabaseclient";
 import { useToast } from "@/hooks/use-toast";
 import {
   getUserAppointments,
@@ -13,34 +12,23 @@ import {
   getMedicalRecords,
   getPatientProfile,
 } from "@/lib/supabase-queries";
-import { Calendar, FileText, Activity, Clock, MapPin, Video, User, Mail, Phone } from "lucide-react";
+import { Calendar, FileText, Activity, Clock, Video, User, Mail, Phone } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Appointment, Prescription, MedicalRecord, PatientProfile } from "@/types";
 
 const Dashboard = () => {
   const { data: session, isPending } = useSession();
   const navigate = useNavigate();
   const { toast } = useToast();
   
-  const [appointments, setAppointments] = useState<any[]>([]);
-  const [prescriptions, setPrescriptions] = useState<any[]>([]);
-  const [medicalRecords, setMedicalRecords] = useState<any[]>([]);
-  const [patientProfile, setPatientProfile] = useState<any>(null);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+  const [medicalRecords, setMedicalRecords] = useState<MedicalRecord[]>([]);
+  const [patientProfile, setPatientProfile] = useState<PatientProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
 
-  useEffect(() => {
-    if (!isPending && !session) {
-      navigate("/signin");
-    }
-  }, [session, isPending, navigate]);
-
-  useEffect(() => {
-    if (session?.user?.id) {
-      loadDashboardData();
-    }
-  }, [session?.user?.id]);
-
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     if (!session?.user?.id) return;
     
     setLoading(true);
@@ -52,11 +40,11 @@ const Dashboard = () => {
         getPatientProfile(session.user.id),
       ]);
 
-      setAppointments(appts);
-      setPrescriptions(scripts);
-      setMedicalRecords(records);
-      setPatientProfile(profile);
-    } catch (error: any) {
+      setAppointments(appts as Appointment[]);
+      setPrescriptions(scripts as Prescription[]);
+      setMedicalRecords(records as MedicalRecord[]);
+      setPatientProfile(profile as PatientProfile);
+    } catch (error) {
       console.error("Error loading dashboard:", error);
       toast({
         title: "Error",
@@ -66,7 +54,19 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [session?.user?.id, toast]);
+
+  useEffect(() => {
+    if (!isPending && !session) {
+      navigate("/signin");
+    }
+  }, [session, isPending, navigate]);
+
+  useEffect(() => {
+    if (session?.user?.id) {
+      loadDashboardData();
+    }
+  }, [session?.user?.id, loadDashboardData]);
 
   const handleSignOut = async () => {
     try {
@@ -76,10 +76,11 @@ const Dashboard = () => {
         description: "You have been signed out successfully",
       });
       navigate("/");
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to sign out";
       toast({
         title: "Error",
-        description: error.message || "Failed to sign out",
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -385,7 +386,7 @@ const Dashboard = () => {
                             <div className="text-sm">
                               <p className="font-medium mb-1">Medications:</p>
                               <ul className="list-disc list-inside space-y-1">
-                                {script.medications.map((med: any, idx: number) => (
+                                {script.medications.map((med, idx) => (
                                   <li key={idx}>
                                     {med.name} - {med.dosage} ({med.frequency})
                                   </li>
