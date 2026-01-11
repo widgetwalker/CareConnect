@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Calendar, Video, Loader2, Clock } from "lucide-react";
+import { ArrowLeft, Calendar, Video, Loader2 } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -15,7 +15,7 @@ import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useSession } from "@/lib/auth";
 import { createAppointment, getAvailableSlots, getDoctors } from "@/lib/supabase-queries";
-import { supabase } from "../../supabaseclient";
+import { Doctor, TimeSlot } from "@/types";
 
 const consultationSchema = z.object({
   doctorId: z.string().optional(),
@@ -33,9 +33,9 @@ const Consultation = () => {
   const { toast } = useToast();
   const { data: session } = useSession();
 
-  const [selectedDoctor, setSelectedDoctor] = useState<any>(null);
-  const [availableDoctors, setAvailableDoctors] = useState<any[]>([]);
-  const [availableSlots, setAvailableSlots] = useState<any[]>([]);
+  const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
+  const [availableDoctors, setAvailableDoctors] = useState<Doctor[]>([]);
+  const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -54,6 +54,44 @@ const Consultation = () => {
 
   const selectedDate = watch("date");
   const selectedTime = watch("time");
+
+  const loadDoctors = useCallback(async () => {
+    try {
+      const doctors = await getDoctors({ availableToday: true });
+      setAvailableDoctors(doctors);
+    } catch (error) {
+      console.error("Error loading doctors:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load doctors",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
+
+  const loadAvailableSlots = useCallback(async (doctorId: string, date: string) => {
+    setLoadingSlots(true);
+    try {
+      const slots = await getAvailableSlots(doctorId, date);
+      setAvailableSlots(slots);
+
+      if (slots.length === 0) {
+        toast({
+          title: "No slots available",
+          description: "Please select a different date or doctor",
+        });
+      }
+    } catch (error) {
+      console.error("Error loading slots:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load available time slots",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingSlots(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
     if (!session) {
@@ -93,7 +131,7 @@ const Consultation = () => {
         console.error("Error loading saved form:", e);
       }
     }
-  }, [location.state, setValue, toast]);
+  }, [location.state, setValue, toast, loadDoctors]);
 
   useEffect(() => {
     if (selectedDoctor?.id && selectedDate) {
@@ -101,7 +139,7 @@ const Consultation = () => {
     } else {
       setAvailableSlots([]);
     }
-  }, [selectedDoctor, selectedDate]);
+  }, [selectedDoctor, selectedDate, loadAvailableSlots]);
 
   // Save form data to localStorage
   const formData = watch();
@@ -110,44 +148,6 @@ const Consultation = () => {
       localStorage.setItem("consultationForm", JSON.stringify(formData));
     }
   }, [formData]);
-
-  const loadDoctors = async () => {
-    try {
-      const doctors = await getDoctors({ availableToday: true });
-      setAvailableDoctors(doctors);
-    } catch (error: any) {
-      console.error("Error loading doctors:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load doctors",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const loadAvailableSlots = async (doctorId: string, date: string) => {
-    setLoadingSlots(true);
-    try {
-      const slots = await getAvailableSlots(doctorId, date);
-      setAvailableSlots(slots);
-      
-      if (slots.length === 0) {
-        toast({
-          title: "No slots available",
-          description: "Please select a different date or doctor",
-        });
-      }
-    } catch (error: any) {
-      console.error("Error loading slots:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load available time slots",
-        variant: "destructive",
-      });
-    } finally {
-      setLoadingSlots(false);
-    }
-  };
 
   const handleBrowseDoctors = () => {
     navigate("/doctors", { state: { fromConsultation: true } });
@@ -161,7 +161,7 @@ const Consultation = () => {
     setValue("time", "");
   };
 
-  const formatTimeSlot = (slot: any) => {
+  const formatTimeSlot = (slot: TimeSlot) => {
     const start = new Date(slot.slot_start);
     const end = new Date(slot.slot_end);
     return `${start.toLocaleTimeString("en-US", {
@@ -211,12 +211,12 @@ const Consultation = () => {
       const slotEnd = new Date(slotStart.getTime() + 30 * 60 * 1000); // 30 minutes
 
       // Create appointment
-      const appointment = await createAppointment({
+      await createAppointment({
         patient_id: session.user.id,
         doctor_id: selectedDoctor.id,
         slot_start: slotStart.toISOString(),
         slot_end: slotEnd.toISOString(),
-        specialty: selectedDoctor.specialty,
+        specialty: selectedDoctor.specialties[0]?.specialty || "General",
         symptoms: data.symptoms,
         consultation_type: data.consultation_type || "video",
       });
@@ -233,11 +233,12 @@ const Consultation = () => {
       setTimeout(() => {
         navigate("/dashboard");
       }, 2000);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error booking appointment:", error);
+      const errorMessage = error instanceof Error ? error.message : "Could not book appointment. Please try again.";
       toast({
         title: "Booking failed",
-        description: error.message || "Could not book appointment. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -283,7 +284,7 @@ const Consultation = () => {
                         {selectedDoctor.name}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {selectedDoctor.specialty}
+                        {selectedDoctor.specialties[0]?.specialty || "General"}
                       </p>
                       <Button
                         type="button"
