@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,8 +10,9 @@ import Footer from "@/components/Footer";
 import { useToast } from "@/hooks/use-toast";
 import { getDoctors } from "@/lib/supabase-queries";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Doctor } from "@/types";
 
-const DUMMY_DOCTORS = [
+const DUMMY_DOCTORS: Doctor[] = [
   {
     id: "1",
     name: "Dr. Sarah Chen",
@@ -155,8 +156,8 @@ const DUMMY_DOCTORS = [
 ];
 
 const Doctors = () => {
-  const [doctors, setDoctors] = useState<any[]>(DUMMY_DOCTORS);
-  const [filteredDoctors, setFilteredDoctors] = useState<any[]>(DUMMY_DOCTORS);
+  const [doctors, setDoctors] = useState<Doctor[]>(DUMMY_DOCTORS);
+  const [filteredDoctors, setFilteredDoctors] = useState<Doctor[]>(DUMMY_DOCTORS);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [specialtyFilter, setSpecialtyFilter] = useState("all");
@@ -169,9 +170,42 @@ const Doctors = () => {
     // loadDoctors();
   }, []);
 
+  const filterDoctors = useCallback(() => {
+    let filtered = [...doctors];
+
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (doc) =>
+          doc.name.toLowerCase().includes(query) ||
+          doc.specialties.some((s) =>
+            s.specialty.toLowerCase().includes(query)
+          ) ||
+          doc.bio?.toLowerCase().includes(query)
+      );
+    }
+
+    // Specialty filter
+    if (specialtyFilter !== "all") {
+      filtered = filtered.filter((doc) =>
+        doc.specialties.some(
+          (s) => s.specialty.toLowerCase() === specialtyFilter.toLowerCase()
+        )
+      );
+    }
+
+    // Availability filter
+    if (availabilityFilter !== "all") {
+      filtered = filtered.filter((doc) => doc.available);
+    }
+
+    setFilteredDoctors(filtered);
+  }, [doctors, searchQuery, specialtyFilter, availabilityFilter]);
+
   useEffect(() => {
     filterDoctors();
-  }, [doctors, searchQuery, specialtyFilter, availabilityFilter]);
+  }, [filterDoctors]);
 
   const loadDoctors = async () => {
     setLoading(true);
@@ -184,7 +218,7 @@ const Doctors = () => {
         setDoctors(DUMMY_DOCTORS);
         setFilteredDoctors(DUMMY_DOCTORS);
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error loading doctors:", error);
       setDoctors(DUMMY_DOCTORS);
       setFilteredDoctors(DUMMY_DOCTORS);
@@ -193,40 +227,8 @@ const Doctors = () => {
     }
   };
 
-  const filterDoctors = () => {
-    let filtered = [...doctors];
 
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (doc) =>
-          doc.name.toLowerCase().includes(query) ||
-          doc.specialties.some((s: any) =>
-            s.specialty.toLowerCase().includes(query)
-          ) ||
-          doc.bio?.toLowerCase().includes(query)
-      );
-    }
-
-    // Specialty filter
-    if (specialtyFilter !== "all") {
-      filtered = filtered.filter((doc) =>
-        doc.specialties.some(
-          (s: any) => s.specialty.toLowerCase() === specialtyFilter.toLowerCase()
-        )
-      );
-    }
-
-    // Availability filter
-    if (availabilityFilter !== "all") {
-      filtered = filtered.filter((doc) => doc.available);
-    }
-
-    setFilteredDoctors(filtered);
-  };
-
-  const handleBookAppointment = (doctor: any) => {
+  const handleBookAppointment = (doctor: Doctor) => {
     navigate("/consultation", {
       state: {
         selectedDoctor: {
@@ -238,7 +240,7 @@ const Doctors = () => {
     });
   };
 
-  const handleViewProfile = (doctor: any) => {
+  const handleViewProfile = (doctor: Doctor) => {
     toast({
       title: "Doctor Profile",
       description: `Viewing profile of ${doctor.name}. Our specialty is ${doctor.specialties[0]?.specialty}.`,
@@ -247,7 +249,7 @@ const Doctors = () => {
 
   const specialties = Array.from(
     new Set(
-      doctors.flatMap((doc) => doc.specialties.map((s: any) => s.specialty))
+      doctors.flatMap((doc) => doc.specialties.map((s) => s.specialty))
     )
   );
 
@@ -384,7 +386,7 @@ const Doctors = () => {
                   </CardHeader>
                   <CardContent className="space-y-4 pt-0">
                     <div className="flex flex-wrap gap-2">
-                      {doctor.specialties.map((spec: any, idx: number) => (
+                      {doctor.specialties.map((spec, idx: number) => (
                         <Badge key={idx} variant="secondary" className="bg-primary/5 text-primary hover:bg-primary/10 border-none">
                           {spec.specialty}
                         </Badge>
