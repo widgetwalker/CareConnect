@@ -26,6 +26,9 @@ export interface Appointment {
   slot_start: string;
   slot_end: string;
   status: string;
+  specialty?: string;
+  symptoms?: string;
+  consultation_type?: string;
   doctors?: {
     id: string;
     user_profiles: {
@@ -38,4 +41,39 @@ export interface Appointment {
 export interface TimeSlot {
   slot_start: string;
   slot_end: string;
+}
+
+export interface Medication {
+  name: string;
+  dosage: string;
+  frequency: string;
+}
+
+export interface Prescription {
+  id: string;
+  created_at: string;
+  is_active: boolean;
+  diagnosis?: string;
+  medications?: Medication[];
+  appointments?: {
+    doctors?: {
+      user_profiles?: {
+        full_name?: string;
+      } | null;
+    } | null;
+  } | null;
+}
+
+export interface MedicalRecord {
+  id: string;
+  title: string;
+  record_type: string;
+  recorded_date: string;
+  description?: string;
+  vital_signs?: Record<string, unknown>;
+}
+
+export interface PatientProfile {
+  full_name: string;
+  phone?: string;
 }
