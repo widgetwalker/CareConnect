@@ -21,17 +21,21 @@ export interface Doctor {
 
 export interface Appointment {
   id: string;
-  patient_id: string;
+  user_id: string;
   doctor_id: string;
-  slot_start: string;
-  slot_end: string;
+  date: string;
   status: string;
+  slot_start?: string;
+  slot_end?: string;
   specialty?: string;
   symptoms?: string;
   consultation_type?: string;
   doctors?: {
     id: string;
-    user_profiles: {
+    bio?: string;
+    experience_years?: number;
+    consultation_fee_base?: number;
+    user_profiles?: {
       full_name: string;
       avatar_url?: string;
     } | null;

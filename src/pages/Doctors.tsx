@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Search, Star, MapPin, Video, Calendar, Loader2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useToast } from "@/hooks/use-toast";
 import { getDoctors } from "@/lib/supabase-queries";
@@ -14,7 +15,7 @@ import { Doctor } from "@/types";
 
 const DUMMY_DOCTORS: Doctor[] = [
   {
-    id: "1",
+    id: "11111111-1111-1111-1111-111111111111",
     name: "Dr. Sarah Chen",
     specialties: [{ specialty: "Cardiology" }],
     avatar: "https://i.pravatar.cc/150?u=sarahchen",
@@ -28,7 +29,7 @@ const DUMMY_DOCTORS: Doctor[] = [
     available: true,
   },
   {
-    id: "2",
+    id: "22222222-2222-2222-2222-222222222222",
     name: "Dr. James Wilson",
     specialties: [{ specialty: "Dermatology" }],
     avatar: "https://i.pravatar.cc/150?u=jameswilson",
@@ -42,7 +43,7 @@ const DUMMY_DOCTORS: Doctor[] = [
     available: true,
   },
   {
-    id: "3",
+    id: "33333333-3333-3333-3333-333333333333",
     name: "Dr. Priya Sharma",
     specialties: [{ specialty: "Pediatrics" }],
     avatar: "https://i.pravatar.cc/150?u=priyasharma",
@@ -53,10 +54,10 @@ const DUMMY_DOCTORS: Doctor[] = [
     city: "Bangalore",
     state: "Karnataka",
     fee: 700,
-    available: false,
+    available: true,
   },
   {
-    id: "4",
+    id: "44444444-4444-4444-4444-444444444444",
     name: "Dr. Robert Miller",
     specialties: [{ specialty: "Psychiatry" }],
     avatar: "https://i.pravatar.cc/150?u=robertmiller",
@@ -70,7 +71,7 @@ const DUMMY_DOCTORS: Doctor[] = [
     available: true,
   },
   {
-    id: "5",
+    id: "55555555-5555-5555-5555-555555555555",
     name: "Dr. Anita Desai",
     specialties: [{ specialty: "Neurology" }],
     avatar: "https://i.pravatar.cc/150?u=anitadesai",
@@ -84,7 +85,7 @@ const DUMMY_DOCTORS: Doctor[] = [
     available: true,
   },
   {
-    id: "6",
+    id: "66666666-6666-6666-6666-666666666666",
     name: "Dr. Michael Ross",
     specialties: [{ specialty: "Orthopedics" }],
     avatar: "https://i.pravatar.cc/150?u=michaelross",
@@ -98,7 +99,7 @@ const DUMMY_DOCTORS: Doctor[] = [
     available: true,
   },
   {
-    id: "7",
+    id: "77777777-7777-7777-7777-777777777777",
     name: "Dr. Elena Gilbert",
     specialties: [{ specialty: "General Medicine" }],
     avatar: "https://i.pravatar.cc/150?u=elenagilbert",
@@ -112,7 +113,7 @@ const DUMMY_DOCTORS: Doctor[] = [
     available: true,
   },
   {
-    id: "8",
+    id: "88888888-8888-8888-8888-888888888888",
     name: "Dr. David Tennant",
     specialties: [{ specialty: "Psychiatry" }],
     avatar: "https://i.pravatar.cc/150?u=davidtennant",
@@ -125,34 +126,6 @@ const DUMMY_DOCTORS: Doctor[] = [
     fee: 1300,
     available: true,
   },
-  {
-    id: "9",
-    name: "Dr. Martha Jones",
-    specialties: [{ specialty: "Cardiology" }],
-    avatar: "https://i.pravatar.cc/150?u=marthajones",
-    rating: 4.7,
-    ratingCount: 92,
-    bio: "Heart health expert specializing in non-invasive cardiology and lifestyle management.",
-    experience: 9,
-    city: "Lucknow",
-    state: "Uttar Pradesh",
-    fee: 900,
-    available: false,
-  },
-  {
-    id: "10",
-    name: "Dr. Gregory House",
-    specialties: [{ specialty: "Diagnostics" }],
-    avatar: "https://i.pravatar.cc/150?u=gregoryhouse",
-    rating: 4.5,
-    ratingCount: 450,
-    bio: "World-renowned diagnostic expert for complex and rare medical conditions.",
-    experience: 25,
-    city: "Jaipur",
-    state: "Rajasthan",
-    fee: 2000,
-    available: true,
-  }
 ];
 
 const Doctors = () => {
@@ -234,7 +207,7 @@ const Doctors = () => {
         selectedDoctor: {
           id: doctor.id,
           name: doctor.name,
-          specialty: doctor.specialties[0]?.specialty || "General",
+          specialty: doctor.specialties?.[0]?.specialty || "General",
         },
       },
     });
@@ -243,7 +216,7 @@ const Doctors = () => {
   const handleViewProfile = (doctor: Doctor) => {
     toast({
       title: "Doctor Profile",
-      description: `Viewing profile of ${doctor.name}. Our specialty is ${doctor.specialties[0]?.specialty}.`,
+      description: `Viewing profile of ${doctor.name}. Our specialty is ${doctor.specialties?.[0]?.specialty}.`,
     });
   };
 
@@ -255,6 +228,7 @@ const Doctors = () => {
 
   return (
     <div className="min-h-screen">
+      <Navbar />
       <main className="pt-24 pb-16">
         <div className="container mx-auto px-4">
           <Link to="/">

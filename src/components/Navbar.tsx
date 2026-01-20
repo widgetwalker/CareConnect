@@ -1,9 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Heart, Menu, User, Brain, Activity, Stethoscope, Truck } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { useSession, signOut } from "@/lib/auth";
+import { supabase } from "@/lib/supabaseclient";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,8 +14,24 @@ import {
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { data: session } = useSession();
+  const [session, setSession] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoading(false);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleNavigation = (path: string) => {
     try {
@@ -102,7 +118,7 @@ const Navbar = () => {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={async () => {
-                      await signOut();
+                      await supabase.auth.signOut();
                       window.location.href = "/";
                     }}
                     className="text-destructive focus:text-destructive"
@@ -178,7 +194,7 @@ const Navbar = () => {
                     variant="outline"
                     className="w-full transition-wellness hover:scale-105"
                     onClick={async () => {
-                      await signOut();
+                      await supabase.auth.signOut();
                       window.location.href = "/";
                     }}
                   >

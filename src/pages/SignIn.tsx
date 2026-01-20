@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { signIn, useSession } from "@/lib/auth";
+import { supabase } from "@/lib/supabaseclient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,13 +14,19 @@ const SignIn = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { data: session, isPending: sessionLoading } = useSession();
+  const [sessionLoading, setSessionLoading] = useState(true);
 
   useEffect(() => {
-    if (!sessionLoading && session) {
-      navigate("/dashboard", { replace: true });
-    }
-  }, [session, sessionLoading, navigate]);
+    // Check for existing Supabase session
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        navigate("/dashboard", { replace: true });
+      }
+      setSessionLoading(false);
+    };
+    checkSession();
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,24 +43,25 @@ const SignIn = () => {
     setIsLoading(true);
 
     try {
-      const result = await signIn.email({
+      // Sign in with Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
 
-      if (result.error) {
+      if (error) {
         toast({
           title: "Sign in failed",
-          description: result.error.message || "Invalid email or password. Please check your credentials.",
+          description: error.message || "Invalid email or password. Please check your credentials.",
           variant: "destructive",
         });
-      } else {
+      } else if (data.user) {
         toast({
           title: "Welcome back!",
           description: "Redirecting to your health dashboard...",
         });
         setTimeout(() => {
-          navigate("/dashboard", { replace: true });
+          navigate("/", { replace: true });
         }, 500);
       }
     } catch (error: any) {

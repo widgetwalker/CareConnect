@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { signUp, useSession } from "@/lib/auth";
+import { supabase } from "@/lib/supabaseclient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,13 +18,19 @@ const SignUp = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { data: session, isPending: sessionLoading } = useSession();
+  const [sessionLoading, setSessionLoading] = useState(true);
 
   useEffect(() => {
-    if (!sessionLoading && session) {
-      navigate("/dashboard", { replace: true });
-    }
-  }, [session, sessionLoading, navigate]);
+    // Check for existing Supabase session
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        navigate("/dashboard", { replace: true });
+      }
+      setSessionLoading(false);
+    };
+    checkSession();
+  }, [navigate]);
 
   const passwordRequirements = {
     minLength: password.length >= 8,
@@ -87,26 +93,41 @@ const SignUp = () => {
     setIsLoading(true);
 
     try {
-      const result = await signUp.email({
+      // Sign up with Supabase
+      const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
-        name: name.trim(),
+        options: {
+          data: {
+            full_name: name.trim(),
+          },
+        },
       });
 
-      if (result.error) {
+      if (error) {
         toast({
           title: "Sign up failed",
-          description: result.error.message || "Could not create account. Please try again.",
+          description: error.message || "Could not create account. Please try again.",
           variant: "destructive",
         });
-      } else {
-        toast({
-          title: "Welcome to CareConnect!",
-          description: "Your wellness journey begins now. Redirecting...",
-        });
-        setTimeout(() => {
-          navigate("/dashboard", { replace: true });
-        }, 1500);
+      } else if (data.user) {
+        // Check if email confirmation is required
+        if (data.user.identities && data.user.identities.length === 0) {
+          // Email confirmation is required - user already exists or needs confirmation
+          toast({
+            title: "Check your email",
+            description: "Please check your email to confirm your account before signing in.",
+          });
+        } else {
+          // Email confirmation is disabled or user is auto-confirmed
+          toast({
+            title: "Welcome to CareConnect!",
+            description: "Your wellness journey begins now. Redirecting...",
+          });
+          setTimeout(() => {
+            navigate("/", { replace: true });
+          }, 1500);
+        }
       }
     } catch (error: any) {
       console.error("Sign up error:", error);

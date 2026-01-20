@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { useSession, signOut } from "@/lib/auth";
+import { supabase } from "@/lib/supabaseclient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,10 +17,11 @@ import { Badge } from "@/components/ui/badge";
 import { Appointment, Prescription, MedicalRecord, PatientProfile } from "@/types";
 
 const Dashboard = () => {
-  const { data: session, isPending } = useSession();
+  const [session, setSession] = useState<any>(null);
+  const [isPending, setIsPending] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [medicalRecords, setMedicalRecords] = useState<MedicalRecord[]>([]);
@@ -28,9 +29,27 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
 
+  // Initialize Supabase session
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setIsPending(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   const loadDashboardData = useCallback(async () => {
-    if (!session?.user?.id) return;
-    
+    if (!session?.user?.id) {
+      console.log("No user session found, skipping data load");
+      return;
+    }
+
+    console.log("Loading dashboard data for user:", session.user.id);
     setLoading(true);
     try {
       const [appts, scripts, records, profile] = await Promise.all([
@@ -39,6 +58,11 @@ const Dashboard = () => {
         getMedicalRecords(session.user.id),
         getPatientProfile(session.user.id),
       ]);
+
+      console.log("Appointments fetched:", appts);
+      console.log("Prescriptions fetched:", scripts);
+      console.log("Medical records fetched:", records);
+      console.log("Patient profile fetched:", profile);
 
       setAppointments(appts as Appointment[]);
       setPrescriptions(scripts as Prescription[]);
@@ -70,7 +94,7 @@ const Dashboard = () => {
 
   const handleSignOut = async () => {
     try {
-      await signOut();
+      await supabase.auth.signOut();
       toast({
         title: "Signed out",
         description: "You have been signed out successfully",
@@ -86,13 +110,28 @@ const Dashboard = () => {
     }
   };
 
+  // Doctor ID to Name mapping (matches our dummy doctors)
+  const DOCTOR_NAMES: Record<string, string> = {
+    "11111111-1111-1111-1111-111111111111": "Dr. Sarah Chen",
+    "22222222-2222-2222-2222-222222222222": "Dr. James Wilson",
+    "33333333-3333-3333-3333-333333333333": "Dr. Priya Sharma",
+    "44444444-4444-4444-4444-444444444444": "Dr. Robert Miller",
+    "55555555-5555-5555-5555-555555555555": "Dr. Anita Desai",
+    "66666666-6666-6666-6666-666666666666": "Dr. Michael Ross",
+    "77777777-7777-7777-7777-777777777777": "Dr. Elena Gilbert",
+    "88888888-8888-8888-8888-888888888888": "Dr. David Tennant",
+  };
+
+  const getDoctorName = (doctorId: string) => {
+    return DOCTOR_NAMES[doctorId] || `Doctor ${doctorId.substring(0, 8)}`;
+  };
+
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
       year: "numeric",
       month: "long",
       day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
     });
   };
 
@@ -121,7 +160,7 @@ const Dashboard = () => {
   }
 
   const upcomingAppointments = appointments.filter(
-    (apt) => new Date(apt.slot_start) > new Date() && apt.status !== "cancelled"
+    (apt) => new Date(apt.date) >= new Date() && apt.status !== "cancelled"
   );
 
   return (
@@ -267,10 +306,10 @@ const Dashboard = () => {
                         >
                           <div>
                             <p className="font-medium">
-                              Dr. {apt.doctors?.user_profiles?.full_name || "Unknown"}
+                              {getDoctorName(apt.doctor_id)}
                             </p>
                             <p className="text-sm text-muted-foreground">
-                              {formatDate(apt.slot_start)}
+                              {formatDate(apt.date)}
                             </p>
                           </div>
                           <Badge className={getStatusColor(apt.status)}>
@@ -311,7 +350,7 @@ const Dashboard = () => {
                           <div className="flex items-start justify-between">
                             <div>
                               <p className="font-semibold">
-                                Dr. {apt.doctors?.user_profiles?.full_name || "Unknown Doctor"}
+                                {getDoctorName(apt.doctor_id)}
                               </p>
                               <p className="text-sm text-muted-foreground">
                                 {apt.specialty || "General Consultation"}
@@ -324,7 +363,7 @@ const Dashboard = () => {
                           <div className="flex items-center gap-4 text-sm text-muted-foreground">
                             <div className="flex items-center gap-1">
                               <Clock className="w-4 h-4" />
-                              {formatDate(apt.slot_start)}
+                              {formatDate(apt.date)}
                             </div>
                             <div className="flex items-center gap-1">
                               <Video className="w-4 h-4" />
