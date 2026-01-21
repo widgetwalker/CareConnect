@@ -15,6 +15,9 @@ import {
 import { Calendar, FileText, Activity, Clock, Video, User, Mail, Phone } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Appointment, Prescription, MedicalRecord, PatientProfile } from "@/types";
+import { MedicalRecords } from "@/components/MedicalRecords";
+import { Prescriptions } from "@/components/Prescriptions";
+import { Notifications } from "@/components/Notifications";
 
 const Dashboard = () => {
   const [session, setSession] = useState<any>(null);
@@ -177,9 +180,12 @@ const Dashboard = () => {
                 Welcome back, {session.user.name || session.user.email}!
               </p>
             </div>
-            <Button onClick={handleSignOut} variant="outline">
-              Sign Out
-            </Button>
+            <div className="flex items-center gap-2">
+              <Notifications userId={session.user.id} />
+              <Button onClick={handleSignOut} variant="outline">
+                Sign Out
+              </Button>
+            </div>
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -387,106 +393,11 @@ const Dashboard = () => {
             </TabsContent>
 
             <TabsContent value="prescriptions" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Prescriptions</CardTitle>
-                  <CardDescription>Your active and past prescriptions</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {prescriptions.length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground">No prescriptions found</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {prescriptions.map((script) => (
-                        <div
-                          key={script.id}
-                          className="p-4 border rounded-lg space-y-2"
-                        >
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <p className="font-semibold">
-                                {formatDate(script.created_at)}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                Dr. {script.appointments?.doctors?.user_profiles?.full_name || "Unknown"}
-                              </p>
-                            </div>
-                            <Badge variant={script.is_active ? "default" : "secondary"}>
-                              {script.is_active ? "Active" : "Inactive"}
-                            </Badge>
-                          </div>
-                          {script.diagnosis && (
-                            <p className="text-sm">
-                              <span className="font-medium">Diagnosis: </span>
-                              {script.diagnosis}
-                            </p>
-                          )}
-                          {script.medications && Array.isArray(script.medications) && (
-                            <div className="text-sm">
-                              <p className="font-medium mb-1">Medications:</p>
-                              <ul className="list-disc list-inside space-y-1">
-                                {script.medications.map((med, idx) => (
-                                  <li key={idx}>
-                                    {med.name} - {med.dosage} ({med.frequency})
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <Prescriptions userId={session.user.id} />
             </TabsContent>
 
             <TabsContent value="records" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Medical Records</CardTitle>
-                  <CardDescription>Your complete medical history</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {medicalRecords.length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground">No medical records found</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {medicalRecords.map((record) => (
-                        <div
-                          key={record.id}
-                          className="p-4 border rounded-lg space-y-2"
-                        >
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <p className="font-semibold">{record.title}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {record.record_type} • {new Date(record.recorded_date).toLocaleDateString()}
-                              </p>
-                            </div>
-                            <Badge variant="outline">{record.record_type}</Badge>
-                          </div>
-                          {record.description && (
-                            <p className="text-sm">{record.description}</p>
-                          )}
-                          {record.vital_signs && (
-                            <div className="text-sm pt-2 border-t">
-                              <p className="font-medium mb-1">Vital Signs:</p>
-                              <pre className="text-xs bg-muted p-2 rounded">
-                                {JSON.stringify(record.vital_signs, null, 2)}
-                              </pre>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <MedicalRecords userId={session.user.id} />
             </TabsContent>
           </Tabs>
         </div>

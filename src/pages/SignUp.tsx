@@ -151,6 +151,24 @@ const SignUp = () => {
           variant: "destructive",
         });
       } else if (data.user) {
+        // Create user table entry for ALL users (required for foreign keys)
+        const { error: userError } = await supabase
+          .from("user")
+          .insert({
+            id: data.user.id,
+            name: name.trim(),
+            email: email.trim(),
+            email_verified: false,
+            role: role,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+
+        if (userError) {
+          console.error("Error creating user record:", userError);
+          // Continue anyway - user might already exist
+        }
+
         // If doctor, create doctor profile in database
         if (role === "doctor") {
           const { error: profileError } = await supabase
@@ -170,6 +188,12 @@ const SignUp = () => {
 
           if (profileError) {
             console.error("Error creating doctor profile:", profileError);
+            toast({
+              title: "Profile creation failed",
+              description: "Doctor account created but profile setup failed. Please contact support.",
+              variant: "destructive",
+            });
+            return;
           }
         }
 
@@ -187,7 +211,9 @@ const SignUp = () => {
               : "Your wellness journey begins now. Redirecting...",
           });
           setTimeout(() => {
-            navigate("/", { replace: true });
+            // Redirect based on role
+            const destination = role === "doctor" ? "/doctor-dashboard" : "/dashboard";
+            navigate(destination, { replace: true });
           }, 1500);
         }
       }

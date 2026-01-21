@@ -1,5 +1,5 @@
--- CareConnect Doctor Portal Database Migration
--- Run this in your Supabase SQL Editor
+-- CareConnect Doctor Portal Database Migration - CLEAN VERSION
+-- This version handles existing objects gracefully
 
 -- 1. Add role column to user table
 ALTER TABLE "user" 
@@ -77,7 +77,12 @@ ALTER TABLE prescriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE medical_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
--- 8. Create RLS Policies for doctor_profiles
+-- 8. Drop existing policies and recreate for doctor_profiles
+DROP POLICY IF EXISTS "Users can view their own doctor profile" ON doctor_profiles;
+DROP POLICY IF EXISTS "Users can insert their own doctor profile" ON doctor_profiles;
+DROP POLICY IF EXISTS "Users can update their own doctor profile" ON doctor_profiles;
+DROP POLICY IF EXISTS "Anyone can view verified doctor profiles" ON doctor_profiles;
+
 CREATE POLICY "Users can view their own doctor profile"
   ON doctor_profiles FOR SELECT
   USING (auth.uid()::text = user_id);
@@ -94,7 +99,12 @@ CREATE POLICY "Anyone can view verified doctor profiles"
   ON doctor_profiles FOR SELECT
   USING (is_verified = true);
 
--- 9. Create RLS Policies for prescriptions
+-- 9. Drop existing policies and recreate for prescriptions
+DROP POLICY IF EXISTS "Doctors can create prescriptions" ON prescriptions;
+DROP POLICY IF EXISTS "Doctors can view their own prescriptions" ON prescriptions;
+DROP POLICY IF EXISTS "Patients can view their own prescriptions" ON prescriptions;
+DROP POLICY IF EXISTS "Doctors can update their own prescriptions" ON prescriptions;
+
 CREATE POLICY "Doctors can create prescriptions"
   ON prescriptions FOR INSERT
   WITH CHECK (auth.uid()::text = doctor_id);
@@ -111,7 +121,10 @@ CREATE POLICY "Doctors can update their own prescriptions"
   ON prescriptions FOR UPDATE
   USING (auth.uid()::text = doctor_id);
 
--- 10. Create RLS Policies for medical_records
+-- 10. Drop existing policies and recreate for medical_records
+DROP POLICY IF EXISTS "Patients can manage their own medical records" ON medical_records;
+DROP POLICY IF EXISTS "Doctors can view all medical records" ON medical_records;
+
 CREATE POLICY "Patients can manage their own medical records"
   ON medical_records FOR ALL
   USING (auth.uid()::text = patient_id);
@@ -125,7 +138,11 @@ CREATE POLICY "Doctors can view all medical records"
     AND role = 'doctor'
   ));
 
--- 11. Create RLS Policies for notifications
+-- 11. Drop existing policies and recreate for notifications
+DROP POLICY IF EXISTS "Users can view their own notifications" ON notifications;
+DROP POLICY IF EXISTS "Users can update their own notifications" ON notifications;
+DROP POLICY IF EXISTS "System can create notifications for users" ON notifications;
+
 CREATE POLICY "Users can view their own notifications"
   ON notifications FOR SELECT
   USING (auth.uid()::text = user_id);
@@ -144,7 +161,12 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('medical-records', 'medical-records', true)
 ON CONFLICT (id) DO NOTHING;
 
--- 13. Create storage policies for medical records
+-- 13. Drop and recreate storage policies for medical records
+DROP POLICY IF EXISTS "Users can upload their own medical records" ON storage.objects;
+DROP POLICY IF EXISTS "Users can view their own medical records" ON storage.objects;
+DROP POLICY IF EXISTS "Doctors can view all medical records" ON storage.objects;
+DROP POLICY IF EXISTS "Users can delete their own medical records" ON storage.objects;
+
 CREATE POLICY "Users can upload their own medical records"
 ON storage.objects FOR INSERT
 TO authenticated
@@ -181,7 +203,7 @@ USING (
   AND (storage.foldername(name))[1] = auth.uid()::text
 );
 
--- 14. Create a function to update the updated_at timestamp
+-- 14. Create or replace function to update the updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -190,7 +212,7 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- 15. Create triggers for updated_at
+-- 15. Drop and recreate triggers for updated_at
 DROP TRIGGER IF EXISTS update_doctor_profiles_updated_at ON doctor_profiles;
 CREATE TRIGGER update_doctor_profiles_updated_at
     BEFORE UPDATE ON doctor_profiles
@@ -204,4 +226,4 @@ CREATE TRIGGER update_prescriptions_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 -- Migration completed successfully!
--- You can now run the doctor account creation script
+-- Tables, policies, and storage bucket are ready

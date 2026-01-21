@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseclient";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,20 +25,34 @@ interface MedicalRecordsProps {
 
 export const MedicalRecords = ({ userId }: MedicalRecordsProps) => {
     const [records, setRecords] = useState<MedicalRecord[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
     const [showUploadDialog, setShowUploadDialog] = useState(false);
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [file, setFile] = useState<File | null>(null);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const { toast } = useToast();
 
+    // Get the authenticated user ID
+    useEffect(() => {
+        const getUser = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+                setCurrentUserId(session.user.id);
+            }
+        };
+        getUser();
+    }, []);
+
     const loadRecords = async () => {
+        if (!currentUserId) return;
+
         setLoading(true);
         const { data, error } = await supabase
             .from("medical_records")
             .select("*")
-            .eq("patient_id", userId)
+            .eq("patient_id", currentUserId)
             .order("uploaded_at", { ascending: false });
 
         if (error) {
@@ -48,6 +62,13 @@ export const MedicalRecords = ({ userId }: MedicalRecordsProps) => {
         }
         setLoading(false);
     };
+
+    // Load records when currentUserId is available
+    useEffect(() => {
+        if (currentUserId) {
+            loadRecords();
+        }
+    }, [currentUserId]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -65,11 +86,20 @@ export const MedicalRecords = ({ userId }: MedicalRecordsProps) => {
             return;
         }
 
+        if (!currentUserId) {
+            toast({
+                title: "Authentication error",
+                description: "Please sign in again",
+                variant: "destructive",
+            });
+            return;
+        }
+
         setUploading(true);
 
         try {
             // Upload file to Supabase Storage
-            const fileName = `${userId}/${Date.now()}_${file.name}`;
+            const fileName = `${currentUserId}/${Date.now()}_${file.name}`;
             const { data: uploadData, error: uploadError } = await supabase.storage
                 .from("medical-records")
                 .upload(fileName, file);
@@ -86,7 +116,7 @@ export const MedicalRecords = ({ userId }: MedicalRecordsProps) => {
                 .from("medical_records")
                 .insert({
                     id: crypto.randomUUID(),
-                    patient_id: userId,
+                    patient_id: currentUserId,
                     title,
                     description: description || null,
                     file_url: urlData.publicUrl,
@@ -137,11 +167,6 @@ export const MedicalRecords = ({ userId }: MedicalRecordsProps) => {
             loadRecords();
         }
     };
-
-    // Load records on mount
-    useState(() => {
-        loadRecords();
-    });
 
     return (
         <Card>

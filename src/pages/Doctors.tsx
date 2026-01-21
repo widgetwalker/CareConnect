@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { getDoctors } from "@/lib/supabase-queries";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Doctor } from "@/types";
+import { supabase } from "@/lib/supabaseclient";
 
 const DUMMY_DOCTORS: Doctor[] = [
   {
@@ -129,9 +130,9 @@ const DUMMY_DOCTORS: Doctor[] = [
 ];
 
 const Doctors = () => {
-  const [doctors, setDoctors] = useState<Doctor[]>(DUMMY_DOCTORS);
-  const [filteredDoctors, setFilteredDoctors] = useState<Doctor[]>(DUMMY_DOCTORS);
-  const [loading, setLoading] = useState(false);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [filteredDoctors, setFilteredDoctors] = useState<Doctor[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [specialtyFilter, setSpecialtyFilter] = useState("all");
   const [availabilityFilter, setAvailabilityFilter] = useState("all");
@@ -139,8 +140,7 @@ const Doctors = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    // We use dummy data directly now as requested
-    // loadDoctors();
+    loadDoctors();
   }, []);
 
   const filterDoctors = useCallback(() => {
@@ -183,13 +183,62 @@ const Doctors = () => {
   const loadDoctors = async () => {
     setLoading(true);
     try {
-      const data = await getDoctors();
-      if (data && data.length > 0) {
-        setDoctors(data);
-        setFilteredDoctors(data);
-      } else {
+      // Fetch from existing doctors table
+      const existingDoctors = await getDoctors();
+
+      // Fetch from new doctor_profiles (for doctors who signed up)
+      const { data: doctorProfiles, error } = await supabase
+        .from("doctor_profiles")
+        .select(`
+          *,
+          user:user_id (
+            id,
+            name,
+            email,
+            image
+          )
+        `)
+        .eq("is_verified", true);
+
+      if (error) {
+        console.error("Error loading doctor profiles:", error);
+      }
+
+      // Transform doctor profiles to match Doctor interface
+      const profileDoctors = (doctorProfiles || []).map((profile: any) => ({
+        id: profile.doctor_id || profile.id,
+        name: profile.user?.name || "Doctor",
+        specialties: [{ specialty: profile.speciality }],
+        avatar: profile.user?.image || `https://i.pravatar.cc/150?u=${profile.user_id}`,
+        rating: parseFloat(profile.rating) || 4.5,
+        ratingCount: 0,
+        bio: profile.description || `${profile.experience} of experience in ${profile.speciality}`,
+        experience: parseInt(profile.experience) || 5,
+        city: profile.location.split(",")[0] || "India",
+        state: profile.location.split(",")[1] || "",
+        fee: profile.fee,
+        available: true,
+      }));
+
+      // Combine both sources, prioritizing profiles over existing
+      const allDoctors = [...profileDoctors];
+
+      // Add existing doctors that don't have profiles yet
+      if (existingDoctors && existingDoctors.length > 0) {
+        existingDoctors.forEach((doc: any) => {
+          if (!allDoctors.find(d => d.id === doc.id)) {
+            allDoctors.push(doc);
+          }
+        });
+      }
+
+      // Fallback to dummy data if no doctors found
+      if (allDoctors.length === 0) {
         setDoctors(DUMMY_DOCTORS);
         setFilteredDoctors(DUMMY_DOCTORS);
+      } else {
+        setDoctors(allDoctors);
+        setFilteredDoctors(allDoctors);
       }
     } catch (error) {
       console.error("Error loading doctors:", error);
