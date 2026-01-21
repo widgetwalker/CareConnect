@@ -11,6 +11,7 @@ import Doctors from "./pages/Doctors";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
 import Dashboard from "./pages/Dashboard";
+import DoctorDashboard from "./pages/DoctorDashboard";
 import HomeDelivery from "./pages/HomeDelivery";
 import HealthAssistant from "./pages/HealthAssistant";
 import SymptomChecker from "./pages/SymptomChecker";
@@ -58,6 +59,7 @@ const App = () => (
                 <Route path="/signin" element={<SignIn />} />
                 <Route path="/signup" element={<SignUp />} />
                 <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/doctor-dashboard" element={<DoctorDashboard />} />
                 <Route path="/consultation" element={<Consultation />} />
                 <Route path="/doctors" element={<Doctors />} />
                 <Route path="/home-delivery" element={<HomeDelivery />} />

@@ -56,12 +56,20 @@ const SignIn = () => {
           variant: "destructive",
         });
       } else if (data.user) {
+        // Check user role and redirect accordingly
+        const userRole = data.user.user_metadata?.role || "patient";
+
         toast({
           title: "Welcome back!",
-          description: "Redirecting to your health dashboard...",
+          description: `Redirecting to your ${userRole === "doctor" ? "doctor" : "health"} dashboard...`,
         });
+
         setTimeout(() => {
-          navigate("/", { replace: true });
+          if (userRole === "doctor") {
+            navigate("/doctor-dashboard", { replace: true });
+          } else {
+            navigate("/dashboard", { replace: true });
+          }
         }, 500);
       }
     } catch (error: any) {
