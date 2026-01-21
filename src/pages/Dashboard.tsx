@@ -159,9 +159,11 @@ const Dashboard = () => {
     return null;
   }
 
-  const upcomingAppointments = appointments.filter(
-    (apt) => new Date(apt.date) >= new Date() && apt.status !== "cancelled"
-  );
+  const upcomingAppointments = appointments.filter((apt) => {
+    // Show all active appointments (pending or confirmed) regardless of date
+    // This ensures past pending appointments still show up until resolved
+    return apt.status !== "cancelled" && apt.status !== "completed";
+  });
 
   return (
     <div className="min-h-screen flex flex-col">

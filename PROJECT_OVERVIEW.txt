@@ -1,0 +1,96 @@
+CareConnect Project Overview
+==========================
+
+1. Project Description
+---------------------
+CareConnect is a modern web application designed to simplify healthcare access. It allows users to browse doctor profiles, book consultations (video/audio), and manage their health appointments through a personalized dashboard. The application features a responsive design with a dark mode aesthetic.
+
+2. Technology Stack & Software Used
+----------------------------------
+A. Frontend Framework & Languages:
+   - React (v18): The core library for building the user interface.
+   - TypeScript: Adds static typing to JavaScript for better code quality and developer experience.
+   - Vite: Next-generation frontend tooling for fast development and building.
+
+B. Styling & UI:
+   - Tailwind CSS: A utility-first CSS framework for rapid and responsive UI design.
+   - Lucide React: A library for consistent and beautiful icons.
+   - Radix UI (via Shadcn/UI patterns): Accessible, unstyled components for building high-quality design systems (used for Tabs, Cards, etc.).
+   - Class Variance Authority (CVA): For managing component variants.
+
+C. Backend & Database (BaaS):
+   - Supabase: An open-source Firebase alternative providing:
+     - Authentication: Secure user sign-up and sign-in services.
+     - Database (PostgreSQL): Relational database for storing users, doctors, and appointments.
+     - Real-time subscriptions (optional for future features).
+
+D. Routing & State Management:
+   - React Router DOM: Handles navigation between different pages (Home, Dashboard, Doctors, etc.).
+   - React Hooks (useState, useEffect, useContext): Manages local state and side effects.
+
+E. Development Tools:
+   - Node.js & npm: Runtime environment and package manager.
+   - ESLint: Pluggable linting utility for JavaScript and JSX.
+
+3. Project Structure
+-------------------
+The project follows a standard React application structure:
+
+/CareConnect
+├── /src
+│   ├── /components         # Reusable UI components
+│   │   ├── /ui             # Basic UI elements (Buttons, Cards, Inputs - shadcn style)
+│   │   ├── Navbar.tsx      # Navigation bar component
+│   │   └── Footer.tsx      # Application footer
+│   ├── /lib                # Utility libraries and configurations
+│   │   ├── supabaseclient.ts # Initializtion of the Supabase client
+│   │   ├── supabase-queries.ts # Functions interacting with the database
+│   │   └── utils.ts        # Helper functions (e.g., class merging)
+│   ├── /pages              # Main application pages (Views)
+│   │   ├── Home.tsx        # Landing page
+│   │   ├── Doctors.tsx     # Doctor search and listing
+│   │   ├── Consultation.tsx # Appointment booking form
+│   │   ├── Dashboard.tsx   # User dashboard (View appointments)
+│   │   ├── SignIn.tsx      # Login page
+│   │   └── SignUp.tsx      # Registration page
+│   ├── /types              # TypeScript type definitions (Doctor, Appointment, User)
+│   ├── App.tsx             # Root component setting up routes
+│   └── main.tsx            # Entry point rendering the App
+├── /supabase               # SQL scripts for database setup
+├── .env                    # Environment variables (API keys)
+├── package.json            # Project dependencies and scripts
+└── vite.config.ts          # Vite configuration
+
+4. How It Works (Key Workflows)
+------------------------------
+A. Authentication Flow:
+   - Users sign up or sign in using email/password via the Supabase Auth API.
+   - The application manages user sessions. Protected routes (like Dashboard) redirect unauthenticated users to Sign In.
+
+B. Doctor Browsing & Selection:
+   - The 'Doctors' page fetches a list of doctors from the Supabase database (or fallback data).
+   - Users can filter doctors by specialty or search by name.
+   - Clicking "Book" on a doctor card navigates to the Consultation page with that doctor pre-selected.
+
+C. Appointment Booking:
+   - The 'Consultation' page presents a form for the user to select a date, time, and consultation type.
+   - Submitting the form triggers a function in `supabase-queries.ts` that inserts a new record into the `appointments` table in the database, linked to the user's ID.
+
+D. Dashboard Management:
+   - The 'Dashboard' page fetches the authenticated user's profile and appointments.
+   - It displays upcoming appointments with the doctor's name, date, and status.
+   - It handles data relationships (e.g., mapping Doctor IDs to names) to present a user-friendly view.
+
+5. Database Schema (Supabase)
+----------------------------
+- `users` (Managed by Supabase Auth): Stores email and encrypted passwords.
+- `user_profiles`: Stores additional user info (name, avatar).
+- `doctors`: Stores doctor details (bio, specialty, rating).
+- `appointments`: Links users and doctors with a date, status, and consultation type.
+
+6. Getting Started / Running the Project
+---------------------------------------
+1. Install dependencies: `npm install`
+2. Set up environment: Ensure `.env` contains valid `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+3. Run development server: `npm run dev`
+4. Access the app at `http://localhost:8080` (or the port shown in terminal).
