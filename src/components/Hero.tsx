@@ -1,8 +1,17 @@
 import { Button } from "@/components/ui/button";
 import { Brain, Heart, Stethoscope, Activity, Shield, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabaseclient";
 
 const Hero = () => {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsLoggedIn(!!session);
+    });
+  }, []);
   return (
     <section className="relative hero-gradient pt-20 pb-32 overflow-hidden">
       {/* Decorative background elements */}
@@ -38,11 +47,14 @@ const Hero = () => {
                   Check Symptoms
                 </Button>
               </Link>
-              <Link to="/signup">
-                <Button variant="outline" size="lg" className="text-lg transition-wellness hover:scale-105 hover:shadow-wellness glass-card">
-                  Get Started Free
-                </Button>
-              </Link>
+
+              {!isLoggedIn && (
+                <Link to="/signup">
+                  <Button variant="outline" size="lg" className="text-lg transition-wellness hover:scale-105 hover:shadow-wellness glass-card">
+                    Get Started Free
+                  </Button>
+                </Link>
+              )}
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-8">
@@ -131,7 +143,7 @@ const Hero = () => {
           </div>
         </div>
       </div>
-    </section>
+    </section >
   );
 };
 

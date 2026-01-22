@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseclient";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,58 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
 
+  // Call Notification State
+  const [incomingCall, setIncomingCall] = useState<any>(null);
+  const [showCallDialog, setShowCallDialog] = useState(false);
+
+  // Active Call State
+  const [isCallActive, setIsCallActive] = useState(false);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  // Handle Active Call Stream
+  useEffect(() => {
+    if (isCallActive && incomingCall?.callType === 'video') {
+      // Request Camera Access
+      navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+        .then(stream => {
+          streamRef.current = stream;
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = stream;
+          }
+        })
+        .catch(err => {
+          console.error("Error accessing camera:", err);
+          toast({
+            title: "Camera Error",
+            description: "Could not access camera/microphone. Please check permissions.",
+            variant: "destructive"
+          });
+        });
+    }
+
+    return () => {
+      // Cleanup stream on end
+      if (!isCallActive && streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+    };
+  }, [isCallActive, incomingCall]);
+
+  const handleEndCall = () => {
+    setIsCallActive(false);
+    setShowCallDialog(false);
+    setIncomingCall(null);
+
+    // Stop tracks
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    toast({ title: "Call Ended", description: "Video call session ended." });
+  };
+
   // Profile Edit State
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editName, setEditName] = useState("");
@@ -47,6 +99,77 @@ const Dashboard = () => {
       setEditPhone(patientProfile?.phone || "");
     }
   }, [session, patientProfile]);
+
+  // Real-time Call Listener
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    console.log("Setting up real-time call listener for:", session.user.id);
+
+    const subscription = supabase
+      .channel('public:notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${session.user.id}`
+        },
+        (payload) => {
+          console.log('New notification received:', payload);
+          if (payload.new.type === 'incoming_call') {
+            try {
+              let callData = { doctorName: 'Doctor', callType: 'Video' };
+              try {
+                const parsed = JSON.parse(payload.new.message);
+                callData = { ...callData, ...parsed };
+              } catch (e) {
+                callData.doctorName = 'Doctor';
+              }
+              setIncomingCall(callData);
+              setShowCallDialog(true);
+            } catch (err) {
+              console.error("Error processing incoming call:", err);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, [session]);
+
+  const handleAnswerCall = async () => {
+    setShowCallDialog(false);
+    setIsCallActive(true);
+    toast({ title: "Call Connected", description: "Camera starting..." });
+
+    // Signal Acceptance to Doctor
+    // We send this notification TO the Doctor's ID so they can see it via RLS
+    if (incomingCall?.doctorId) {
+      try {
+        await supabase.from("notifications").insert({
+          id: crypto.randomUUID(),
+          user_id: incomingCall.doctorId, // Send to Doctor!
+          type: "call_accepted",
+          title: "Call Accepted",
+          message: JSON.stringify({ patientId: session.user.id }),
+          is_read: false
+        });
+      } catch (e) { console.error("Signal error", e); }
+    } else {
+      console.warn("No doctor ID found in call data, cannot reply.");
+    }
+  };
+
+  const handleDeclineCall = () => {
+    setShowCallDialog(false);
+    setIncomingCall(null);
+    toast({ title: "Call Declined", description: "You declined the call." });
+  };
 
   const handleSaveProfile = async () => {
     if (!session?.user?.id) return;
@@ -534,7 +657,86 @@ const Dashboard = () => {
           </Tabs>
         </div>
       </div>
-    </div>
+
+
+      {/* Incoming Call Dialog */}
+      {
+        showCallDialog && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="bg-card text-card-foreground border shadow-xl rounded-xl p-6 w-full max-w-sm animate-in fade-in zoom-in duration-300">
+              <div className="text-center space-y-4">
+                <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center animate-pulse">
+                  {incomingCall?.callType === 'audio' ? <Phone className="w-8 h-8 text-primary" /> : <Video className="w-8 h-8 text-primary" />}
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold">Incoming {incomingCall?.callType} Call</h3>
+                  <p className="text-muted-foreground">{incomingCall?.doctorName} is calling...</p>
+                </div>
+                <div className="flex gap-4 justify-center pt-4">
+                  <Button variant="destructive" size="lg" className="rounded-full w-14 h-14 p-0" onClick={handleDeclineCall}>
+                    <X className="w-6 h-6" />
+                  </Button>
+                  <Button variant="default" size="lg" className="bg-green-600 hover:bg-green-700 rounded-full w-14 h-14 p-0" onClick={handleAnswerCall}>
+                    <Phone className="w-6 h-6" />
+                  </Button>
+                </div>
+                <div className="flex justify-between px-8 text-xs text-muted-foreground font-medium">
+                  <span>Decline</span>
+                  <span>Answer</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Active Video Call Interface */}
+      {isCallActive && (
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center">
+
+          {/* Header / Info */}
+          <div className="absolute top-8 left-8 z-10">
+            <div className="bg-black/50 text-white px-4 py-2 rounded-lg backdrop-blur-md flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+              <span className="font-semibold">{incomingCall?.doctorName}</span>
+              <span className="text-sm opacity-75">({formatDate(new Date().toISOString())})</span>
+            </div>
+          </div>
+
+          {/* Video Container */}
+          <div className="relative w-full h-full max-w-5xl max-h-[80vh] bg-gray-900 rounded-xl overflow-hidden shadow-2xl mx-4">
+            {/* Main Video (My stream for now, effectively mirror) */}
+            <video
+              ref={localVideoRef}
+              autoPlay
+              muted
+              playsInline
+              className="w-full h-full object-cover transform scale-x-[-1]" // Mirror effect
+            />
+
+            {/* Placeholder for Remote Stream (simulated) */}
+            <div className="absolute bottom-4 right-4 w-48 h-36 bg-gray-800 rounded-lg border-2 border-white/20 flex items-center justify-center overflow-hidden">
+              <User className="w-12 h-12 text-muted-foreground opacity-50" />
+              <p className="absolute bottom-2 text-xs text-white/50">Dr. Video (Waiting...)</p>
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="absolute bottom-8 flex gap-6 z-10">
+            <Button variant="secondary" size="lg" className="rounded-full w-14 h-14 bg-gray-700 hover:bg-gray-600 border-none text-white">
+              <Video className="w-6 h-6" />
+            </Button>
+            <Button variant="secondary" size="lg" className="rounded-full w-14 h-14 bg-gray-700 hover:bg-gray-600 border-none text-white">
+              <Phone className="w-6 h-6" />
+            </Button>
+
+            <Button variant="destructive" size="lg" className="rounded-full w-16 h-16 shadow-lg hover:scale-105 transition-transform" onClick={handleEndCall}>
+              <Phone className="w-8 h-8 rotate-[135deg]" />
+            </Button>
+          </div>
+        </div>
+      )}
+    </div >
   );
 };
 

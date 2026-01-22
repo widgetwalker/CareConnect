@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseclient";
 import { useToast } from "@/hooks/use-toast";
@@ -47,6 +47,7 @@ interface MedicalRecord {
     description: string;
     file_url: string;
     file_type: string;
+    record_type?: string;
     uploaded_at: string;
 }
 
@@ -62,6 +63,19 @@ const DoctorDashboard = () => {
     const [showRecordsDialog, setShowRecordsDialog] = useState(false);
     const [showViewPrescriptionDialog, setShowViewPrescriptionDialog] = useState(false);
     const [viewPrescriptionData, setViewPrescriptionData] = useState<Prescription | null>(null);
+
+    // Active Call State
+    const [isCallActive, setIsCallActive] = useState(false);
+    const [currentCallingPatientId, setCurrentCallingPatientId] = useState<string | null>(null);
+    const localVideoRef = useRef<HTMLVideoElement>(null);
+    const streamRef = useRef<MediaStream | null>(null);
+
+    // My Patients Section State
+    const [uniquePatients, setUniquePatients] = useState<any[]>([]);
+    const [selectedPatient, setSelectedPatient] = useState<any>(null);
+    const [showPatientDetailDialog, setShowPatientDetailDialog] = useState(false);
+    const [patientRecords, setPatientRecords] = useState<MedicalRecord[]>([]);
+    const [patientPrescriptions, setPatientPrescriptions] = useState<Prescription[]>([]);
 
     // Prescription form
     const [diagnosis, setDiagnosis] = useState("");
@@ -103,6 +117,190 @@ const DoctorDashboard = () => {
         await loadDoctorProfile(session.user.id);
         await loadAppointments(session.user.id);
         setLoading(false);
+    };
+
+    const loadPatients = async (appointmentsList: Appointment[]) => {
+        // Extract unique patients from appointments
+        const patientsMap = new Map();
+        appointmentsList.forEach(apt => {
+            if (apt.patient && !patientsMap.has(apt.patient.id)) {
+                patientsMap.set(apt.patient.id, apt.patient);
+            }
+        });
+        setUniquePatients(Array.from(patientsMap.values()));
+    };
+
+    // Handle Active Call Stream & Listener
+    useEffect(() => {
+        if (!user?.id) return;
+
+        console.log("Setting up Doctor signal listener for:", user.id);
+
+        // Listen for call acceptance
+        const subscription = supabase
+            .channel('doctor_call_signals')
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'notifications',
+                    filter: `user_id=eq.${user.id}`
+                },
+                (payload) => {
+                    console.log("Doctor received notification:", payload);
+                    if (payload.new.type === 'call_accepted') {
+                        toast({ title: "Patient Accepted", description: "Connecting video..." });
+                        setIsCallActive(true);
+                    }
+                }
+            )
+            .subscribe();
+
+        // Handle Stream
+        if (isCallActive) {
+            const startStream = async () => {
+                try {
+                    // Try Video + Audio first
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    streamRef.current = stream;
+                    if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+                } catch (err: any) {
+                    console.error("Camera access error:", err);
+
+                    // Fallback: Try Video Only
+                    if (err.name === 'NotReadableError' || err.name === 'TrackStartError' || err.name === 'DOMException') {
+                        toast({ title: "Microphone Busy", description: "Trying video only mode...", variant: "default" });
+                        try {
+                            const videoStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                            streamRef.current = videoStream;
+                            if (localVideoRef.current) localVideoRef.current.srcObject = videoStream;
+                            return;
+                        } catch (videoErr) {
+                            console.error("Video-only fallback failed:", videoErr);
+                        }
+                    }
+
+                    toast({
+                        title: "Camera Error",
+                        description: "Camera/Mic is busy. Please close the patient tab or other apps.",
+                        variant: "destructive"
+                    });
+                }
+            };
+            startStream();
+        }
+
+        return () => {
+            supabase.removeChannel(subscription);
+            if (!isCallActive && streamRef.current) {
+                streamRef.current.getTracks().forEach(track => track.stop());
+                streamRef.current = null;
+            }
+        };
+    }, [isCallActive, currentCallingPatientId, user]);
+
+    const handleEndCall = () => {
+        setIsCallActive(false);
+        setCurrentCallingPatientId(null);
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
+        }
+        toast({ title: "Call Ended", description: "Session closed." });
+    };
+
+    const handlePatientClick = async (patient: any) => {
+        setSelectedPatient(patient);
+        setPatientRecords([]);
+        setPatientPrescriptions([]);
+        setShowPatientDetailDialog(true);
+
+        // Load Medical Records for this patient
+        const { data: records, error: recError } = await supabase
+            .from("medical_records")
+            .select("*")
+            .eq("patient_id", patient.id)
+            .order("uploaded_at", { ascending: false });
+
+        if (!recError && records) setPatientRecords(records);
+
+        // Load Prescriptions history (from all doctors, or just me? Requirement implies comprehensive history "previous prescriptions too")
+        // We will show prescriptions from THIS doctor for safety/privacy unless we want all.
+        // Actually, "previous prescriptions too" usually means history.
+        // Let's fetch prescriptions where patient_id matches (and user is logged in doctor)
+        // Load Prescriptions history
+        console.log("Fetching prescriptions for patient:", patient.id);
+
+        const { data: prescriptions, error: presError } = await supabase
+            .from("prescriptions")
+            .select("*")
+            .eq("patient_id", patient.id)
+            .order("created_at", { ascending: false });
+
+        if (presError) {
+            console.error("Error fetching prescriptions:", presError);
+        } else {
+            console.log("Found prescriptions:", prescriptions);
+            if (prescriptions) setPatientPrescriptions(prescriptions);
+        }
+    };
+
+    const handleRecommendSession = async (patientId: string, type: string) => {
+        try {
+            await supabase.from("notifications").insert({
+                id: crypto.randomUUID(),
+                user_id: patientId,
+                type: "recommendation",
+                title: "Doctor Recommendation",
+                message: `Dr. ${user.user_metadata?.full_name || "CareConnect Doctor"} recommends you book a ${type.toUpperCase()} session soon.`,
+                is_read: false
+            });
+            toast({
+                title: "Recommendation Sent",
+                description: `Patient has been notified to book a ${type} session.`,
+            });
+        } catch (e) {
+            console.error("Error sending recommendation:", e);
+            toast({
+                title: "Error",
+                description: "Failed to send recommendation.",
+                variant: "destructive"
+            });
+        }
+    };
+
+    const handleStartCall = async (patientId: string, type: 'video' | 'audio' | 'chat') => {
+        setCurrentCallingPatientId(patientId);
+        try {
+            toast({
+                title: "Initiating Call...",
+                description: `Starting ${type} session with patient.`,
+            });
+
+            await supabase.from("notifications").insert({
+                id: crypto.randomUUID(),
+                user_id: patientId,
+                type: "incoming_call",
+                title: "Incoming Call",
+                message: JSON.stringify({
+                    doctorName: user.user_metadata?.full_name || "Dr. CareConnect",
+                    doctorId: user.id, // Send my ID so patient can reply
+                    callType: type,
+                    sessionId: crypto.randomUUID()
+                }),
+                related_id: type,
+                is_read: false
+            });
+
+        } catch (error) {
+            console.error("Error starting call:", error);
+            toast({
+                title: "Error",
+                description: "Failed to start call notification",
+                variant: "destructive"
+            });
+        }
     };
 
     const loadDoctorProfile = async (userId: string) => {
@@ -214,12 +412,36 @@ const DoctorDashboard = () => {
             // Fetch patient details and medical records for each appointment
             const appointmentsWithDetails = await Promise.all(
                 (appointmentsData || []).map(async (apt) => {
-                    // Fetch patient details from user_profiles
-                    const { data: patientProfile } = await supabase
-                        .from("user_profiles")
-                        .select("id, full_name, email, avatar_url")
+                    // Fetch patient details from 'user' table (since SignUp uses 'user')
+                    // Fallback to 'user_profiles' if 'user' query fails or is empty, just in case.
+                    let patientName = "Patient";
+                    let patientEmail = "";
+                    let patientAvatar = "";
+
+                    // Try 'user' table first
+                    const { data: userData } = await supabase
+                        .from("user")
+                        .select("id, name, email")
                         .eq("id", apt.user_id)
                         .single();
+
+                    if (userData) {
+                        patientName = userData.name || "Patient";
+                        patientEmail = userData.email || "";
+                    } else {
+                        // Fallback to user_profiles if implemented elsewhere
+                        const { data: profileData } = await supabase
+                            .from("user_profiles")
+                            .select("full_name, email, avatar_url")
+                            .eq("id", apt.user_id)
+                            .single();
+
+                        if (profileData) {
+                            patientName = profileData.full_name || "Patient";
+                            patientEmail = profileData.email || "";
+                            patientAvatar = profileData.avatar_url || "";
+                        }
+                    }
 
                     // Fetch medical records
                     const { data: records, error: recordsError } = await supabase
@@ -231,9 +453,6 @@ const DoctorDashboard = () => {
                     // Log medical records fetch result for debugging
                     if (recordsError) {
                         console.error(`Error fetching medical records for patient ${apt.user_id}:`, recordsError);
-                        console.error("Error details:", JSON.stringify(recordsError, null, 2));
-                    } else {
-                        console.log(`Fetched ${records?.length || 0} medical records for patient ${apt.user_id}`);
                     }
 
                     // Fetch existing prescription (Get the latest one)
@@ -250,9 +469,9 @@ const DoctorDashboard = () => {
                         ...apt,
                         patient: {
                             id: apt.user_id,
-                            name: patientProfile?.full_name || "Patient",
-                            email: patientProfile?.email || "",
-                            image: patientProfile?.avatar_url || "",
+                            name: patientName,
+                            email: patientEmail,
+                            image: patientAvatar,
                         },
                         medical_records: records || [],
                         prescription: prescription || null,
@@ -261,7 +480,11 @@ const DoctorDashboard = () => {
             );
 
             console.log("Appointments with details:", appointmentsWithDetails);
+            console.log("Appointments with details:", appointmentsWithDetails);
             setAppointments(appointmentsWithDetails);
+
+            // Generate Unique Patients list from these appointments
+            loadPatients(appointmentsWithDetails);
         }
     };
 
@@ -498,7 +721,9 @@ const DoctorDashboard = () => {
                     </div>
 
                     {/* Stats */}
-                    <div className="grid gap-6 md:grid-cols-2">
+                    {/* Stats & My Patients Grid */}
+                    <div className="grid gap-6 md:grid-cols-3">
+                        {/* Column 1: Today's Appointments */}
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <CardTitle className="text-sm font-medium">Today's Appointments</CardTitle>
@@ -512,6 +737,7 @@ const DoctorDashboard = () => {
                             </CardContent>
                         </Card>
 
+                        {/* Column 2: Upcoming Appointments */}
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <CardTitle className="text-sm font-medium">Upcoming Appointments</CardTitle>
@@ -522,6 +748,40 @@ const DoctorDashboard = () => {
                                 <p className="text-xs text-muted-foreground">
                                     Total upcoming
                                 </p>
+                            </CardContent>
+                        </Card>
+
+                        {/* Column 3: My Patients (Compact View) */}
+                        <Card className="md:row-span-2 flex flex-col">
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">My Patients ({uniquePatients.length})</CardTitle>
+                                <Users className="h-4 w-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent className="flex-1 overflow-hidden">
+                                {uniquePatients.length === 0 ? (
+                                    <div className="text-center py-4">
+                                        <p className="text-xs text-muted-foreground">No patients yet.</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3 max-h-[120px] overflow-y-auto pr-2">
+                                        {uniquePatients.map((patient) => (
+                                            <div
+                                                key={patient.id}
+                                                className="flex items-center gap-3 p-2 border rounded-md hover:bg-muted/50 transition-colors cursor-pointer"
+                                                onClick={() => handlePatientClick(patient)}
+                                            >
+                                                <Avatar className="w-8 h-8">
+                                                    <AvatarImage src={patient.image} />
+                                                    <AvatarFallback>{patient.name.charAt(0)}</AvatarFallback>
+                                                </Avatar>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium truncate">{patient.name}</p>
+                                                </div>
+                                                <FileText className="w-3 h-3 text-muted-foreground" />
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                     </div>
@@ -614,19 +874,31 @@ const DoctorDashboard = () => {
 
                                                 {/* Start Consultation Button */}
                                                 {appointment.consultation_type === 'video' && (
-                                                    <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+                                                    <Button
+                                                        size="sm"
+                                                        className="bg-blue-600 hover:bg-blue-700"
+                                                        onClick={() => handleStartCall(appointment.patient.id, 'video')}
+                                                    >
                                                         <Video className="w-4 h-4 mr-2" />
                                                         Start Video Call
                                                     </Button>
                                                 )}
                                                 {appointment.consultation_type === 'audio' && (
-                                                    <Button size="sm" className="bg-green-600 hover:bg-green-700">
+                                                    <Button
+                                                        size="sm"
+                                                        className="bg-green-600 hover:bg-green-700"
+                                                        onClick={() => handleStartCall(appointment.patient.id, 'audio')}
+                                                    >
                                                         <Phone className="w-4 h-4 mr-2" />
                                                         Start Audio Call
                                                     </Button>
                                                 )}
                                                 {(appointment.consultation_type === 'chat' || appointment.consultation_type === 'text') && (
-                                                    <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700">
+                                                    <Button
+                                                        size="sm"
+                                                        className="bg-indigo-600 hover:bg-indigo-700"
+                                                        onClick={() => handleStartCall(appointment.patient.id, 'chat')}
+                                                    >
                                                         <MessageCircle className="w-4 h-4 mr-2" />
                                                         Start Chat
                                                     </Button>
@@ -912,6 +1184,170 @@ const DoctorDashboard = () => {
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
+
+
+                {/* Patient Detail Dialog */}
+                <Dialog open={showPatientDetailDialog} onOpenChange={setShowPatientDetailDialog}>
+                    <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-3 text-xl">
+                                <Avatar className="w-12 h-12">
+                                    <AvatarImage src={selectedPatient?.image} />
+                                    <AvatarFallback>{selectedPatient?.name.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                    {selectedPatient?.name}
+                                    <p className="text-sm font-normal text-muted-foreground">{selectedPatient?.email}</p>
+                                </div>
+                            </DialogTitle>
+                            <DialogDescription>
+                                Patient History & Records
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-6">
+                            {/* Actions: Recommend Session */}
+                            <div className="p-4 border rounded-lg bg-muted/20 space-y-3">
+                                <h3 className="font-semibold text-sm flex items-center gap-2">
+                                    <Stethoscope className="w-4 h-4" />
+                                    Recommend Next Session
+                                </h3>
+                                <div className="flex flex-wrap gap-2">
+                                    <Button
+                                        size="sm"
+                                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                                        onClick={() => handleRecommendSession(selectedPatient?.id!, 'video')}
+                                    >
+                                        <Video className="w-3.5 h-3.5 mr-2" />
+                                        Video
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        className="bg-green-600 hover:bg-green-700 text-white"
+                                        onClick={() => handleRecommendSession(selectedPatient?.id!, 'audio')}
+                                    >
+                                        <Phone className="w-3.5 h-3.5 mr-2" />
+                                        Audio
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                                        onClick={() => handleRecommendSession(selectedPatient?.id!, 'chat')}
+                                    >
+                                        <MessageCircle className="w-3.5 h-3.5 mr-2" />
+                                        Chat
+                                    </Button>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    This will send a notification to the patient recommending they book a slot.
+                                </p>
+                            </div>
+
+                            <div className="grid md:grid-cols-2 gap-6">
+                                {/* Left Col: Medical Records */}
+                                <div className="space-y-3">
+                                    <h3 className="font-semibold flex items-center gap-2">
+                                        <FileText className="w-4 h-4" />
+                                        Medical Records
+                                    </h3>
+                                    <div className="space-y-2 border rounded-md p-2 min-h-[200px] max-h-[400px] overflow-y-auto">
+                                        {patientRecords.length > 0 ? (
+                                            patientRecords.map(record => (
+                                                <div key={record.id} className="p-2 border-b last:border-0 hover:bg-muted/50 rounded flex justify-between items-start">
+                                                    <div>
+                                                        <p className="text-sm font-medium">{record.title}</p>
+                                                        {record.record_type && (
+                                                            <Badge variant="outline" className="text-[10px] mt-0.5">
+                                                                {record.record_type.replace(/_/g, ' ')}
+                                                            </Badge>
+                                                        )}
+                                                        <p className="text-xs text-muted-foreground mt-1">
+                                                            {format(new Date(record.uploaded_at), "MMM dd, yyyy")}
+                                                        </p>
+                                                    </div>
+                                                    <a href={record.file_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs">
+                                                        View
+                                                    </a>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p className="text-sm text-muted-foreground text-center py-8">No records found</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Right Col: Past Prescriptions */}
+                                <div className="space-y-3">
+                                    <h3 className="font-semibold flex items-center gap-2">
+                                        <ClipboardList className="w-4 h-4" />
+                                        Prescription History
+                                    </h3>
+                                    <div className="space-y-2 border rounded-md p-2 min-h-[200px] max-h-[400px] overflow-y-auto">
+                                        {patientPrescriptions.length > 0 ? (
+                                            patientPrescriptions.map(pres => (
+                                                <div key={pres.id} className="p-3 border rounded-md bg-card shadow-sm space-y-2">
+                                                    <div className="flex justify-between items-start">
+                                                        <span className="text-xs font-bold text-muted-foreground">
+                                                            {format(new Date(pres.created_at), "MMM dd, yyyy")}
+                                                        </span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-xs text-muted-foreground">Diagnosis:</span>
+                                                        <p className="text-sm font-medium">{pres.diagnosis}</p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-xs text-muted-foreground">Medicines:</span>
+                                                        <p className="text-xs whitespace-pre-wrap font-mono bg-muted/30 p-1 rounded">{pres.medicines}</p>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p className="text-sm text-muted-foreground text-center py-8">No previous prescriptions</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
+
+
+                {/* Active Video Call Interface */}
+                {isCallActive && (
+                    <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center">
+                        <div className="absolute top-8 left-8 z-10">
+                            <div className="bg-black/50 text-white px-4 py-2 rounded-lg backdrop-blur-md flex items-center gap-3">
+                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                                <span className="font-semibold">Patient Call Active</span>
+                            </div>
+                        </div>
+
+                        <div className="relative w-full h-full max-w-5xl max-h-[80vh] bg-gray-900 rounded-xl overflow-hidden shadow-2xl mx-4">
+                            <video
+                                ref={localVideoRef}
+                                autoPlay
+                                muted
+                                playsInline
+                                className="w-full h-full object-cover transform scale-x-[-1]"
+                            />
+                            <div className="absolute bottom-4 right-4 w-48 h-36 bg-gray-800 rounded-lg border-2 border-white/20 flex items-center justify-center overflow-hidden">
+                                <Users className="w-12 h-12 text-muted-foreground opacity-50" />
+                                <p className="absolute bottom-2 text-xs text-white/50">Patient (Remote)</p>
+                            </div>
+                        </div>
+
+                        <div className="absolute bottom-8 flex gap-6 z-10">
+                            <Button variant="secondary" size="lg" className="rounded-full w-14 h-14 bg-gray-700 hover:bg-gray-600 border-none text-white">
+                                <Video className="w-6 h-6" />
+                            </Button>
+                            <Button variant="destructive" size="lg" className="rounded-full w-16 h-16 shadow-lg hover:scale-105 transition-transform" onClick={handleEndCall}>
+                                <Phone className="w-8 h-8 rotate-[135deg]" />
+                            </Button>
+                        </div>
+                    </div>
+                )}
+
             </div>
         </div>
     );
