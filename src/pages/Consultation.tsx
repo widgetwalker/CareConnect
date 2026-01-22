@@ -27,122 +27,6 @@ const consultationSchema = z.object({
 
 type ConsultationFormData = z.infer<typeof consultationSchema>;
 
-const DUMMY_DOCTORS: Doctor[] = [
-  {
-    id: "11111111-1111-1111-1111-111111111111",
-    name: "Dr. Sarah Chen",
-    specialties: [{ specialty: "Cardiology" }],
-    avatar: "https://i.pravatar.cc/150?u=sarahchen",
-    rating: 4.9,
-    ratingCount: 128,
-    bio: "Excellence in cardiovascular health with over 15 years of experience in interventional cardiology.",
-    experience: 15,
-    city: "Mumbai",
-    state: "Maharashtra",
-    fee: 1000,
-    available: true,
-  },
-  {
-    id: "22222222-2222-2222-2222-222222222222",
-    name: "Dr. James Wilson",
-    specialties: [{ specialty: "Dermatology" }],
-    avatar: "https://i.pravatar.cc/150?u=jameswilson",
-    rating: 4.8,
-    ratingCount: 95,
-    bio: "Specializing in medical and cosmetic dermatology with a focus on skin cancer prevention.",
-    experience: 10,
-    city: "Delhi",
-    state: "Delhi",
-    fee: 800,
-    available: true,
-  },
-  {
-    id: "33333333-3333-3333-3333-333333333333",
-    name: "Dr. Priya Sharma",
-    specialties: [{ specialty: "Pediatrics" }],
-    avatar: "https://i.pravatar.cc/150?u=priyasharma",
-    rating: 4.9,
-    ratingCount: 210,
-    bio: "Dedicated pediatrician committed to providing compassionate care for children and adolescents.",
-    experience: 12,
-    city: "Bangalore",
-    state: "Karnataka",
-    fee: 700,
-    available: true,
-  },
-  {
-    id: "44444444-4444-4444-4444-444444444444",
-    name: "Dr. Robert Miller",
-    specialties: [{ specialty: "Psychiatry" }],
-    avatar: "https://i.pravatar.cc/150?u=robertmiller",
-    rating: 4.7,
-    ratingCount: 84,
-    bio: "Expert in mental health wellness, focusing on stress management and clinical psychiatry.",
-    experience: 18,
-    city: "Chennai",
-    state: "Tamil Nadu",
-    fee: 1200,
-    available: true,
-  },
-  {
-    id: "55555555-5555-5555-5555-555555555555",
-    name: "Dr. Anita Desai",
-    specialties: [{ specialty: "Neurology" }],
-    avatar: "https://i.pravatar.cc/150?u=anitadesai",
-    rating: 5.0,
-    ratingCount: 56,
-    bio: "Specialist in neurological disorders and stroke management with advanced research background.",
-    experience: 20,
-    city: "Hyderabad",
-    state: "Telangana",
-    fee: 1500,
-    available: true,
-  },
-  {
-    id: "66666666-6666-6666-6666-666666666666",
-    name: "Dr. Michael Ross",
-    specialties: [{ specialty: "Orthopedics" }],
-    avatar: "https://i.pravatar.cc/150?u=michaelross",
-    rating: 4.6,
-    ratingCount: 112,
-    bio: "Focusing on sports medicine and joint replacement surgeries with a patient-first approach.",
-    experience: 8,
-    city: "Pune",
-    state: "Maharashtra",
-    fee: 1100,
-    available: true,
-  },
-  {
-    id: "77777777-7777-7777-7777-777777777777",
-    name: "Dr. Elena Gilbert",
-    specialties: [{ specialty: "General Medicine" }],
-    avatar: "https://i.pravatar.cc/150?u=elenagilbert",
-    rating: 4.9,
-    ratingCount: 300,
-    bio: "Comprehensive primary care for families, focusing on preventative medicine and wellness.",
-    experience: 7,
-    city: "Kolkata",
-    state: "West Bengal",
-    fee: 500,
-    available: true,
-  },
-  {
-    id: "88888888-8888-8888-8888-888888888888",
-    name: "Dr. David Tennant",
-    specialties: [{ specialty: "Psychiatry" }],
-    avatar: "https://i.pravatar.cc/150?u=davidtennant",
-    rating: 4.8,
-    ratingCount: 150,
-    bio: "Compassionate behavioral health specialist with expertise in adolescent psychiatry.",
-    experience: 14,
-    city: "Ahmedabad",
-    state: "Gujarat",
-    fee: 1300,
-    available: true,
-  },
-];
-
-
 const Consultation = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -189,19 +73,22 @@ const Consultation = () => {
   const loadDoctors = useCallback(async () => {
     try {
       const doctors = await getDoctors({ availableToday: true });
-      if (doctors && doctors.length > 0) {
-        setAvailableDoctors(doctors);
-      } else {
-        // Use dummy data as fallback
-        setAvailableDoctors(DUMMY_DOCTORS.filter(d => d.available));
+      console.log("Loaded doctors from database:", doctors);
+      setAvailableDoctors(doctors || []);
+
+      if (!doctors || doctors.length === 0) {
+        toast({
+          title: "No Doctors Available",
+          description: "No doctors have registered yet. Please check back later.",
+        });
       }
     } catch (error) {
       console.error("Error loading doctors:", error);
-      // Use dummy data as fallback when database fails
-      setAvailableDoctors(DUMMY_DOCTORS.filter(d => d.available));
+      setAvailableDoctors([]);
       toast({
-        title: "Using Sample Data",
-        description: "Showing sample doctors for demonstration",
+        title: "Error Loading Doctors",
+        description: "Could not load doctors from database",
+        variant: "destructive",
       });
     }
   }, [toast]);
@@ -382,6 +269,7 @@ const Consultation = () => {
       await createAppointment({
         patient_id: session.user.id,
         doctor_id: selectedDoctor.id,
+        doctor_name: selectedDoctor.name, // Store doctor name to prevent name changes
         slot_start: slotStart.toISOString(),
         slot_end: slotEnd.toISOString(),
         specialty: selectedDoctor.specialties?.[0]?.specialty || "General",

@@ -14,121 +14,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Doctor } from "@/types";
 import { supabase } from "@/lib/supabaseclient";
 
-const DUMMY_DOCTORS: Doctor[] = [
-  {
-    id: "11111111-1111-1111-1111-111111111111",
-    name: "Dr. Sarah Chen",
-    specialties: [{ specialty: "Cardiology" }],
-    avatar: "https://i.pravatar.cc/150?u=sarahchen",
-    rating: 4.9,
-    ratingCount: 128,
-    bio: "Excellence in cardiovascular health with over 15 years of experience in interventional cardiology.",
-    experience: 15,
-    city: "Mumbai",
-    state: "Maharashtra",
-    fee: 1000,
-    available: true,
-  },
-  {
-    id: "22222222-2222-2222-2222-222222222222",
-    name: "Dr. James Wilson",
-    specialties: [{ specialty: "Dermatology" }],
-    avatar: "https://i.pravatar.cc/150?u=jameswilson",
-    rating: 4.8,
-    ratingCount: 95,
-    bio: "Specializing in medical and cosmetic dermatology with a focus on skin cancer prevention.",
-    experience: 10,
-    city: "Delhi",
-    state: "Delhi",
-    fee: 800,
-    available: true,
-  },
-  {
-    id: "33333333-3333-3333-3333-333333333333",
-    name: "Dr. Priya Sharma",
-    specialties: [{ specialty: "Pediatrics" }],
-    avatar: "https://i.pravatar.cc/150?u=priyasharma",
-    rating: 4.9,
-    ratingCount: 210,
-    bio: "Dedicated pediatrician committed to providing compassionate care for children and adolescents.",
-    experience: 12,
-    city: "Bangalore",
-    state: "Karnataka",
-    fee: 700,
-    available: true,
-  },
-  {
-    id: "44444444-4444-4444-4444-444444444444",
-    name: "Dr. Robert Miller",
-    specialties: [{ specialty: "Psychiatry" }],
-    avatar: "https://i.pravatar.cc/150?u=robertmiller",
-    rating: 4.7,
-    ratingCount: 84,
-    bio: "Expert in mental health wellness, focusing on stress management and clinical psychiatry.",
-    experience: 18,
-    city: "Chennai",
-    state: "Tamil Nadu",
-    fee: 1200,
-    available: true,
-  },
-  {
-    id: "55555555-5555-5555-5555-555555555555",
-    name: "Dr. Anita Desai",
-    specialties: [{ specialty: "Neurology" }],
-    avatar: "https://i.pravatar.cc/150?u=anitadesai",
-    rating: 5.0,
-    ratingCount: 56,
-    bio: "Specialist in neurological disorders and stroke management with advanced research background.",
-    experience: 20,
-    city: "Hyderabad",
-    state: "Telangana",
-    fee: 1500,
-    available: true,
-  },
-  {
-    id: "66666666-6666-6666-6666-666666666666",
-    name: "Dr. Michael Ross",
-    specialties: [{ specialty: "Orthopedics" }],
-    avatar: "https://i.pravatar.cc/150?u=michaelross",
-    rating: 4.6,
-    ratingCount: 112,
-    bio: "Focusing on sports medicine and joint replacement surgeries with a patient-first approach.",
-    experience: 8,
-    city: "Pune",
-    state: "Maharashtra",
-    fee: 1100,
-    available: true,
-  },
-  {
-    id: "77777777-7777-7777-7777-777777777777",
-    name: "Dr. Elena Gilbert",
-    specialties: [{ specialty: "General Medicine" }],
-    avatar: "https://i.pravatar.cc/150?u=elenagilbert",
-    rating: 4.9,
-    ratingCount: 300,
-    bio: "Comprehensive primary care for families, focusing on preventative medicine and wellness.",
-    experience: 7,
-    city: "Kolkata",
-    state: "West Bengal",
-    fee: 500,
-    available: true,
-  },
-  {
-    id: "88888888-8888-8888-8888-888888888888",
-    name: "Dr. David Tennant",
-    specialties: [{ specialty: "Psychiatry" }],
-    avatar: "https://i.pravatar.cc/150?u=davidtennant",
-    rating: 4.8,
-    ratingCount: 150,
-    bio: "Compassionate behavioral health specialist with expertise in adolescent psychiatry.",
-    experience: 14,
-    city: "Ahmedabad",
-    state: "Gujarat",
-    fee: 1300,
-    available: true,
-  },
-];
-
 const Doctors = () => {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [filteredDoctors, setFilteredDoctors] = useState<Doctor[]>([]);
@@ -183,67 +68,27 @@ const Doctors = () => {
   const loadDoctors = async () => {
     setLoading(true);
     try {
-      // Fetch from existing doctors table
-      const existingDoctors = await getDoctors();
+      const allDoctors = await getDoctors();
 
-      // Fetch from new doctor_profiles (for doctors who signed up)
-      const { data: doctorProfiles, error } = await supabase
-        .from("doctor_profiles")
-        .select(`
-          *,
-          user:user_id (
-            id,
-            name,
-            email,
-            image
-          )
-        `)
-        .eq("is_verified", true);
+      console.log("Total doctors loaded:", allDoctors);
+      setDoctors(allDoctors);
+      setFilteredDoctors(allDoctors);
 
-      if (error) {
-        console.error("Error loading doctor profiles:", error);
-      }
-
-      // Transform doctor profiles to match Doctor interface
-      const profileDoctors = (doctorProfiles || []).map((profile: any) => ({
-        id: profile.doctor_id || profile.id,
-        name: profile.user?.name || "Doctor",
-        specialties: [{ specialty: profile.speciality }],
-        avatar: profile.user?.image || `https://i.pravatar.cc/150?u=${profile.user_id}`,
-        rating: parseFloat(profile.rating) || 4.5,
-        ratingCount: 0,
-        bio: profile.description || `${profile.experience} of experience in ${profile.speciality}`,
-        experience: parseInt(profile.experience) || 5,
-        city: profile.location.split(",")[0] || "India",
-        state: profile.location.split(",")[1] || "",
-        fee: profile.fee,
-        available: true,
-      }));
-
-      // Combine both sources, prioritizing profiles over existing
-      const allDoctors = [...profileDoctors];
-
-      // Add existing doctors that don't have profiles yet
-      if (existingDoctors && existingDoctors.length > 0) {
-        existingDoctors.forEach((doc: any) => {
-          if (!allDoctors.find(d => d.id === doc.id)) {
-            allDoctors.push(doc);
-          }
-        });
-      }
-
-      // Fallback to dummy data if no doctors found
       if (allDoctors.length === 0) {
-        setDoctors(DUMMY_DOCTORS);
-        setFilteredDoctors(DUMMY_DOCTORS);
-      } else {
-        setDoctors(allDoctors);
-        setFilteredDoctors(allDoctors);
+        toast({
+          title: "No Doctors Available",
+          description: "No doctors have registered yet. Please check back later.",
+        });
       }
     } catch (error) {
       console.error("Error loading doctors:", error);
-      setDoctors(DUMMY_DOCTORS);
-      setFilteredDoctors(DUMMY_DOCTORS);
+      setDoctors([]);
+      setFilteredDoctors([]);
+      toast({
+        title: "Error Loading Doctors",
+        description: "Could not load doctors from database",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }

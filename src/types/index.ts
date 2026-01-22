@@ -30,6 +30,7 @@ export interface Appointment {
   specialty?: string;
   symptoms?: string;
   consultation_type?: string;
+  doctor_name?: string; // Added to display actual doctor name
   doctors?: {
     id: string;
     bio?: string;

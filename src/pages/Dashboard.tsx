@@ -12,7 +12,9 @@ import {
   getMedicalRecords,
   getPatientProfile,
 } from "@/lib/supabase-queries";
-import { Calendar, FileText, Activity, Clock, Video, User, Mail, Phone } from "lucide-react";
+import { Calendar, FileText, Activity, Clock, Video, User, Mail, Phone, Pencil, X, Save } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Appointment, Prescription, MedicalRecord, PatientProfile } from "@/types";
 import { MedicalRecords } from "@/components/MedicalRecords";
@@ -31,6 +33,115 @@ const Dashboard = () => {
   const [patientProfile, setPatientProfile] = useState<PatientProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+
+  // Profile Edit State
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+
+  // Sync edit state with loaded data
+  useEffect(() => {
+    if (session?.user || patientProfile) {
+      const name = patientProfile?.full_name || session?.user?.user_metadata?.full_name || session?.user?.name || "";
+      setEditName(name);
+      setEditPhone(patientProfile?.phone || "");
+    }
+  }, [session, patientProfile]);
+
+  const handleSaveProfile = async () => {
+    if (!session?.user?.id) return;
+
+    console.log("Saving profile for user:", session.user.id);
+
+    try {
+      // 1. Ensure user exists in public.user table
+      const { data: existingUser } = await supabase
+        .from("user")
+        .select("id")
+        .eq("id", session.user.id)
+        .maybeSingle();
+
+      if (!existingUser) {
+        // Create user record if missing
+        console.log("User missing in public table, creating...");
+        const { error: createError } = await supabase
+          .from("user")
+          .insert({
+            id: session.user.id,
+            email: session.user.email,
+            name: editName || session.user.email?.split('@')[0] || "User",
+            role: "patient"
+          });
+
+        if (createError) {
+          console.error("Failed to create user base record:", createError);
+          // Continue - maybe it exists but RLS hid it
+        }
+      } else {
+        // Update existing user name
+        const { error: userError } = await supabase
+          .from("user")
+          .update({ name: editName })
+          .eq("id", session.user.id);
+
+        if (userError) console.error("Error updating user table:", userError);
+      }
+
+      // 2. Update auth metadata (name)
+      const { error: authError } = await supabase.auth.updateUser({
+        data: { full_name: editName }
+      });
+
+      if (authError) console.error("Error updating auth:", authError);
+
+      // 3. Update user_profiles table (detailed info)
+      // Check if table exists/is accessible
+      const { error: accessError } = await supabase
+        .from("user_profiles")
+        .select("id")
+        .limit(1);
+
+      if (accessError && accessError.code === '42P01') {
+        console.error("Table user_profiles does not exist!");
+        toast({
+          title: "System Error",
+          description: "Profile table missing. Please contact support.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const { error: profileError } = await supabase
+        .from("user_profiles")
+        .upsert({
+          id: session.user.id,
+          full_name: editName,
+          phone: editPhone,
+          email: session.user.email,
+          updated_at: new Date().toISOString()
+        });
+
+      if (profileError) {
+        console.error("Profile update error details:", profileError);
+        throw new Error(profileError.message);
+      }
+
+      toast({
+        title: "Success",
+        description: "Profile updated successfully"
+      });
+
+      setIsEditingProfile(false);
+      loadDashboardData();
+    } catch (error: any) {
+      console.error("Error saving profile:", error);
+      toast({
+        title: "Error",
+        description: `Failed to update profile: ${error.message || "Unknown error"}`,
+        variant: "destructive"
+      });
+    }
+  };
 
   // Initialize Supabase session
   useEffect(() => {
@@ -113,21 +224,6 @@ const Dashboard = () => {
     }
   };
 
-  // Doctor ID to Name mapping (matches our dummy doctors)
-  const DOCTOR_NAMES: Record<string, string> = {
-    "11111111-1111-1111-1111-111111111111": "Dr. Sarah Chen",
-    "22222222-2222-2222-2222-222222222222": "Dr. James Wilson",
-    "33333333-3333-3333-3333-333333333333": "Dr. Priya Sharma",
-    "44444444-4444-4444-4444-444444444444": "Dr. Robert Miller",
-    "55555555-5555-5555-5555-555555555555": "Dr. Anita Desai",
-    "66666666-6666-6666-6666-666666666666": "Dr. Michael Ross",
-    "77777777-7777-7777-7777-777777777777": "Dr. Elena Gilbert",
-    "88888888-8888-8888-8888-888888888888": "Dr. David Tennant",
-  };
-
-  const getDoctorName = (doctorId: string) => {
-    return DOCTOR_NAMES[doctorId] || `Doctor ${doctorId.substring(0, 8)}`;
-  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -240,33 +336,69 @@ const Dashboard = () => {
 
               <div className="grid gap-6 md:grid-cols-2">
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Profile Information</CardTitle>
-                    <CardDescription>Your account details</CardDescription>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <div className="space-y-1">
+                      <CardTitle>Profile Information</CardTitle>
+                      <CardDescription>Your account details</CardDescription>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setIsEditingProfile(!isEditingProfile)}
+                    >
+                      {isEditingProfile ? <X className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+                    </Button>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <User className="h-5 w-5 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">Name</p>
-                        <p className="text-base">{session.user.name || patientProfile?.full_name || "Not set"}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Mail className="h-5 w-5 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">Email</p>
-                        <p className="text-base">{session.user.email}</p>
-                      </div>
-                    </div>
-                    {patientProfile?.phone && (
-                      <div className="flex items-center gap-3">
-                        <Phone className="h-5 w-5 text-muted-foreground" />
-                        <div>
-                          <p className="text-sm font-medium text-muted-foreground">Phone</p>
-                          <p className="text-base">{patientProfile.phone}</p>
+                  <CardContent className="pt-4 space-y-4">
+                    {isEditingProfile ? (
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="name">Name</Label>
+                          <Input
+                            id="name"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            placeholder="Your Name"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="phone">Phone</Label>
+                          <Input
+                            id="phone"
+                            value={editPhone}
+                            onChange={(e) => setEditPhone(e.target.value)}
+                            placeholder="Phone Number"
+                          />
+                        </div>
+                        <div className="flex justify-end gap-2 pt-2">
+                          <Button variant="outline" size="sm" onClick={() => setIsEditingProfile(false)}>Cancel</Button>
+                          <Button size="sm" onClick={handleSaveProfile}>Save Changes</Button>
                         </div>
                       </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-3">
+                          <User className="h-5 w-5 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground">Name</p>
+                            <p className="text-base">{patientProfile?.full_name || session.user.name || "Not set"}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Mail className="h-5 w-5 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground">Email</p>
+                            <p className="text-base">{session.user.email}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Phone className="h-5 w-5 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground">Phone</p>
+                            <p className="text-base">{patientProfile?.phone || "Not set"}</p>
+                          </div>
+                        </div>
+                      </>
                     )}
                   </CardContent>
                 </Card>
@@ -314,7 +446,7 @@ const Dashboard = () => {
                         >
                           <div>
                             <p className="font-medium">
-                              {getDoctorName(apt.doctor_id)}
+                              {apt.doctor_name || `Doctor ${apt.doctor_id.substring(0, 8)}`}
                             </p>
                             <p className="text-sm text-muted-foreground">
                               {formatDate(apt.date)}
@@ -358,7 +490,7 @@ const Dashboard = () => {
                           <div className="flex items-start justify-between">
                             <div>
                               <p className="font-semibold">
-                                {getDoctorName(apt.doctor_id)}
+                                {apt.doctor_name || `Doctor ${apt.doctor_id.substring(0, 8)}`}
                               </p>
                               <p className="text-sm text-muted-foreground">
                                 {apt.specialty || "General Consultation"}

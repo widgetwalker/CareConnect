@@ -16,18 +16,21 @@ const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isDoctor, setIsDoctor] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      setIsDoctor(session?.user?.user_metadata?.role === "doctor");
       setLoading(false);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      setIsDoctor(session?.user?.user_metadata?.role === "doctor");
     });
 
     return () => subscription.unsubscribe();
@@ -47,7 +50,7 @@ const Navbar = () => {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 group">
+          <Link to={isDoctor ? "/doctor-dashboard" : "/"} className="flex items-center gap-2 group">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-teal-600 flex items-center justify-center transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
               <Heart className="w-6 h-6 text-white" />
             </div>
@@ -56,30 +59,32 @@ const Navbar = () => {
             </span>
           </Link>
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-6">
-            <Link to="/" className="text-foreground hover:text-primary transition-wellness font-medium relative after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-0.5 after:bottom-0 after:left-0 after:bg-primary after:origin-bottom-right after:transition-transform after:duration-300 hover:after:scale-x-100 hover:after:origin-bottom-left">
-              Home
-            </Link>
-            <Link to="/symptom-checker" className="text-foreground hover:text-primary transition-wellness font-medium flex items-center gap-1.5 relative after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-0.5 after:bottom-0 after:left-0 after:bg-primary after:origin-bottom-right after:transition-transform after:duration-300 hover:after:scale-x-100 hover:after:origin-bottom-left">
-              <Brain className="w-4 h-4" />
-              Symptom Checker
-            </Link>
-            <Link to="/doctors" className="text-foreground hover:text-primary transition-wellness font-medium relative after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-0.5 after:bottom-0 after:left-0 after:bg-primary after:origin-bottom-right after:transition-transform after:duration-300 hover:after:scale-x-100 hover:after:origin-bottom-left">
-              Doctors
-            </Link>
-            <Link to="/consultation" className="text-foreground hover:text-primary transition-wellness font-medium relative after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-0.5 after:bottom-0 after:left-0 after:bg-primary after:origin-bottom-right after:transition-transform after:duration-300 hover:after:scale-x-100 hover:after:origin-bottom-left">
-              Consultation
-            </Link>
-            <Link to="/home-delivery" className="text-foreground hover:text-primary transition-wellness font-medium flex items-center gap-1.5 relative after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-0.5 after:bottom-0 after:left-0 after:bg-primary after:origin-bottom-right after:transition-transform after:duration-300 hover:after:scale-x-100 hover:after:origin-bottom-left">
-              <Truck className="w-4 h-4" />
-              Home Delivery
-            </Link>
-            <Link to="/health-assistant" className="text-foreground hover:text-primary transition-wellness font-medium flex items-center gap-1.5 relative after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-0.5 after:bottom-0 after:left-0 after:bg-primary after:origin-bottom-right after:transition-transform after:duration-300 hover:after:scale-x-100 hover:after:origin-bottom-left">
-              <Brain className="w-4 h-4" />
-              Health Assistant
-            </Link>
-          </div>
+          {/* Desktop Navigation - Only show for patients */}
+          {!isDoctor && (
+            <div className="hidden md:flex items-center gap-6">
+              <Link to="/" className="text-foreground hover:text-primary transition-wellness font-medium relative after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-0.5 after:bottom-0 after:left-0 after:bg-primary after:origin-bottom-right after:transition-transform after:duration-300 hover:after:scale-x-100 hover:after:origin-bottom-left">
+                Home
+              </Link>
+              <Link to="/symptom-checker" className="text-foreground hover:text-primary transition-wellness font-medium flex items-center gap-1.5 relative after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-0.5 after:bottom-0 after:left-0 after:bg-primary after:origin-bottom-right after:transition-transform after:duration-300 hover:after:scale-x-100 hover:after:origin-bottom-left">
+                <Brain className="w-4 h-4" />
+                Symptom Checker
+              </Link>
+              <Link to="/doctors" className="text-foreground hover:text-primary transition-wellness font-medium relative after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-0.5 after:bottom-0 after:left-0 after:bg-primary after:origin-bottom-right after:transition-transform after:duration-300 hover:after:scale-x-100 hover:after:origin-bottom-left">
+                Doctors
+              </Link>
+              <Link to="/consultation" className="text-foreground hover:text-primary transition-wellness font-medium relative after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-0.5 after:bottom-0 after:left-0 after:bg-primary after:origin-bottom-right after:transition-transform after:duration-300 hover:after:scale-x-100 hover:after:origin-bottom-left">
+                Consultation
+              </Link>
+              <Link to="/home-delivery" className="text-foreground hover:text-primary transition-wellness font-medium flex items-center gap-1.5 relative after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-0.5 after:bottom-0 after:left-0 after:bg-primary after:origin-bottom-right after:transition-transform after:duration-300 hover:after:scale-x-100 hover:after:origin-bottom-left">
+                <Truck className="w-4 h-4" />
+                Home Delivery
+              </Link>
+              <Link to="/health-assistant" className="text-foreground hover:text-primary transition-wellness font-medium flex items-center gap-1.5 relative after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-0.5 after:bottom-0 after:left-0 after:bg-primary after:origin-bottom-right after:transition-transform after:duration-300 hover:after:scale-x-100 hover:after:origin-bottom-left">
+                <Brain className="w-4 h-4" />
+                Health Assistant
+              </Link>
+            </div>
+          )}
 
           {/* Desktop Auth Buttons */}
           <div className="hidden md:flex items-center gap-3">
@@ -92,39 +97,62 @@ const Navbar = () => {
                       <User className="w-4 h-4 text-white" />
                     </div>
                     <span className="max-w-[120px] truncate">
-                      {session.user.name || session.user.email}
+                      {isDoctor ? `Dr. ${session.user.user_metadata?.full_name || session.user.email}` : (session.user.name || session.user.email)}
                     </span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuItem asChild>
-                    <Link to="/dashboard" className="flex items-center gap-2">
-                      <Activity className="w-4 h-4" />
-                      Dashboard
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to="/symptom-checker" className="flex items-center gap-2">
-                      <Brain className="w-4 h-4" />
-                      Symptom Checker
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to="/consultation" className="flex items-center gap-2">
-                      <Stethoscope className="w-4 h-4" />
-                      Book Consultation
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={async () => {
-                      await supabase.auth.signOut();
-                      window.location.href = "/";
-                    }}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    Sign Out
-                  </DropdownMenuItem>
+                  {isDoctor ? (
+                    <>
+                      <DropdownMenuItem asChild>
+                        <Link to="/doctor-dashboard" className="flex items-center gap-2">
+                          <Stethoscope className="w-4 h-4" />
+                          Doctor Dashboard
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={async () => {
+                          await supabase.auth.signOut();
+                          window.location.href = "/";
+                        }}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        Sign Out
+                      </DropdownMenuItem>
+                    </>
+                  ) : (
+                    <>
+                      <DropdownMenuItem asChild>
+                        <Link to="/dashboard" className="flex items-center gap-2">
+                          <Activity className="w-4 h-4" />
+                          Dashboard
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to="/symptom-checker" className="flex items-center gap-2">
+                          <Brain className="w-4 h-4" />
+                          Symptom Checker
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to="/consultation" className="flex items-center gap-2">
+                          <Stethoscope className="w-4 h-4" />
+                          Book Consultation
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={async () => {
+                          await supabase.auth.signOut();
+                          window.location.href = "/";
+                        }}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        Sign Out
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
@@ -171,25 +199,39 @@ const Navbar = () => {
         {/* Mobile Menu */}
         {isMenuOpen && (
           <div className="md:hidden py-4 space-y-3 border-t border-border/50 animate-fade-up">
-            <Link to="/" onClick={() => setIsMenuOpen(false)} className="block py-2 text-foreground hover:text-primary transition-colors font-medium hover:translate-x-1 duration-300">
-              Home
-            </Link>
-            <Link to="/symptom-checker" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-2 py-2 text-foreground hover:text-primary transition-colors font-medium hover:translate-x-1 duration-300">
-              <Brain className="w-4 h-4" />
-              Symptom Checker
-            </Link>
-            <Link to="/doctors" onClick={() => setIsMenuOpen(false)} className="block py-2 text-foreground hover:text-primary transition-colors font-medium hover:translate-x-1 duration-300">
-              Doctors
-            </Link>
-            <Link to="/consultation" onClick={() => setIsMenuOpen(false)} className="block py-2 text-foreground hover:text-primary transition-colors font-medium hover:translate-x-1 duration-300">
-              Consultation
-            </Link>
+            {/* Only show patient navigation if not a doctor */}
+            {!isDoctor && (
+              <>
+                <Link to="/" onClick={() => setIsMenuOpen(false)} className="block py-2 text-foreground hover:text-primary transition-colors font-medium hover:translate-x-1 duration-300">
+                  Home
+                </Link>
+                <Link to="/symptom-checker" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-2 py-2 text-foreground hover:text-primary transition-colors font-medium hover:translate-x-1 duration-300">
+                  <Brain className="w-4 h-4" />
+                  Symptom Checker
+                </Link>
+                <Link to="/doctors" onClick={() => setIsMenuOpen(false)} className="block py-2 text-foreground hover:text-primary transition-colors font-medium hover:translate-x-1 duration-300">
+                  Doctors
+                </Link>
+                <Link to="/consultation" onClick={() => setIsMenuOpen(false)} className="block py-2 text-foreground hover:text-primary transition-colors font-medium hover:translate-x-1 duration-300">
+                  Consultation
+                </Link>
+              </>
+            )}
             <div className="pt-3 space-y-2">
               {session ? (
                 <>
-                  <Button variant="ghost" asChild className="w-full transition-wellness hover:scale-105">
-                    <Link to="/dashboard" onClick={() => setIsMenuOpen(false)}>Dashboard</Link>
-                  </Button>
+                  {isDoctor ? (
+                    <Button variant="ghost" asChild className="w-full transition-wellness hover:scale-105">
+                      <Link to="/doctor-dashboard" onClick={() => setIsMenuOpen(false)}>
+                        <Stethoscope className="w-4 h-4 mr-2" />
+                        Doctor Dashboard
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button variant="ghost" asChild className="w-full transition-wellness hover:scale-105">
+                      <Link to="/dashboard" onClick={() => setIsMenuOpen(false)}>Dashboard</Link>
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     className="w-full transition-wellness hover:scale-105"

@@ -9,6 +9,8 @@
     "dev:auth": "tsx watch server/index.ts",
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:auth\"",
     "create-test-user": "tsx server/create-test-user.ts",
+    "migrate:doctor-name": "tsx server/migrations/add-doctor-name.ts",
+    "verify:doctor-roles": "tsx server/migrations/verify-doctor-roles.ts",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
